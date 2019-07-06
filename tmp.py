@@ -12,6 +12,28 @@ B format: ip list line by line
 B 파일을 'ips'라는 list로 저장해두고, A 파일을 한 라인씩 읽으면서 ips를 검색해서 하나라도 있으면 candidates라는 리스트로 저장한다.
 
 https://stackoverflow.com/questions/1347791/unicode-error-unicodeescape-codec-cant-decode-bytes-cannot-open-text-file
+
+Policy: a_name_for_policy, action-type: permit, State: enabled, Index: 65, Scope Policy: 0
+  Policy Type: Configured
+  Sequence number: 1
+  From zone: VDI, To zone: untrust
+  Source addresses:
+    h192.168.98.1: 192.168.98.1/32 
+    h192.168.98.2: 192.168.98.2/32 
+    object_name21: 192.168.98.3/32 
+  Destination addresses:
+    h192.168.100.1: 192.168.100.1/32 
+    h192.168.100.2: 192.168.100.2/32 
+  Application: junos-service1
+    IP protocol: udp, ALG: 0, Inactivity timeout: 60
+      Source port range: [0-0] 
+      Destination port range: [181-182]
+  Application: junos-service2
+    IP protocol: tcp, ALG: 0, Inactivity timeout: 1800
+      Source port range: [0-0] 
+      Destination port range: [49-49]
+  Per policy TCP Options: SYN check: No, SEQ check: No
+  Session log: at-create, at-close
 '''
 #!/usr/bin/env python3
 import mmap
