@@ -73,8 +73,8 @@ if __name__ == '__main__':
 
     with args.policy_file as p_file, \
          open(OUTPUT_FILE, 'w') as out_file:
-		skip = false
-		k = 1
+        skip = false
+        k = 1
         for line in p_file:
             if THIS_IS_POL in line: #if the line is a start of a policy
                 policy = (re.search(r':\s[_\-\w]+,',line)).strip(': ').rstrip(',') # Policy: 뒤에 나올 수 있는 정책 이름 추출 (delimiter= ':' or ' ' and ',')
