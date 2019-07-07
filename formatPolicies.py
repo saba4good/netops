@@ -13,42 +13,101 @@ references:
 - https://stackoverflow.com/questions/7427101/simple-argparse-example-wanted-1-argument-3-results
 - https://stackoverflow.com/questions/20063/whats-the-best-way-to-parse-command-line-arguments
 
+Parts of B file example:
+
+Policy: a_name_for_policy, action-type: permit, State: enabled, Index: 65, Scope Policy: 0
+  Policy Type: Configured
+  Sequence number: 1
+  From zone: VDI, To zone: untrust
+  Source addresses:
+    h192.168.98.1: 192.168.98.1/32 
+    h192.168.98.2: 192.168.98.2/32 
+    object_name21: 192.168.98.3/32 
+  Destination addresses:
+    h192.168.100.1: 192.168.100.1/32 
+    h192.168.100.2: 192.168.100.2/32 
+  Application: junos-service1
+    IP protocol: udp, ALG: 0, Inactivity timeout: 60
+      Source port range: [0-0] 
+      Destination port range: [181-182]
+  Application: junos-service2
+    IP protocol: tcp, ALG: 0, Inactivity timeout: 1800
+      Source port range: [0-0] 
+      Destination port range: [49-49]
+  Per policy TCP Options: SYN check: No, SEQ check: No
+  Session log: at-create, at-close
 '''
 #!/usr/bin/env python3
 import mmap
 import argparse
 import re              # regular expression
-#global variables
-THIS_IS_POL='Policy:'  # Policy paragraph가 시작하는 것을 알 수 있는 구문 (모든 정책은 'Policy:'로 시작함)
-THIS_IS_SIP='Source:'  # Source ip paragraph가 시작하는 것을 알 수 있는 구문
-THIS_IS_DIP='Destination:'  # Destination ip paragraph가 시작하는 것을 알 수 있는 구문
-OUTPUT_FILE='formatted-policies-output.txt'  # 결과 파일 이름
+### global variables
+THIS_IS_POL='Policy:'
+THIS_IS_ACTION='action-type:'
+THIS_IS_FROM='From zone:'
+THIS_IS_TO='To zone:'
+FOLLOWING_IS_SRC='Source addresses:'
+FOLLOWING_IS_DST='Destination addresses:'
+THIS_IS_PROTO='IP protocol:'
+THIS_IS_DPORT='Destination port range:'
+OUTPUT_FILE='policies-formatted-output.txt'  # 결과 파일 이름
 
 if __name__ == '__main__':
     # 이 프로그램을 실행할 때, 받아들일 arguments 2개
     parser = argparse.ArgumentParser()
-    parser.add_argument('policy_ip_pair_file', type=argparse.FileType('r'), required=True, help="a file with a list of policy name and ip pairs")
+    parser.add_argument('pair_file', type=argparse.FileType('r'), required=True, help="a file with a list of policy name and ip pairs")
     parser.add_argument('policy_file', type=argparse.FileType('r'), required=True, help="log for 'show security policies detail | no-more'")
     
     args = parser.parse_args()
-    #args.policy_file
-    for line in args.policy_ip_pair_file:
-        ####
+     
+    policyIPsPair = dict()
+    prevPol = ''
+    with args.pair_file as pairs:
+    for line in pairs:
+        thePolicy = (re.search(r'[_\-\w]+,',line)).rstrip(',') # 정책 이름 추출 (delimiter= before ',')
+        theIP     = (re.search(r',\s[_\-\w]+',line)).strip(', ') # IP 추출 (delimiter= after ',')
+        print("'",thePolicy, "' : '", theIP, "'")
+        if thePolicy == prevPol:
+            policyIPsPair[thePolicy].append(theIP)
+        else:
+            policyIPsPair[thePolicy] = [theIP]
+			prevPol = thePolicy
 
-    
-    ips = [ip.rstrip('\n') for ip in args.indiv_ip_file]  # ip가 있는 파일에서 ip 를 list로 추출
     with args.policy_file as p_file, \
-         open(OUTPUT_FILE, 'w') as r_file:
+         open(OUTPUT_FILE, 'w') as out_file:
+		skip = false
+		k = 1
         for line in p_file:
-            if (line.find(THIS_IS_POL) != -1): #if the line is a start of a policy
-                the_policy = re.search(r'[:\s][_\-\w]+,',line) # Policy: 뒤에 나올 수 있는 정책 이름 추출 (delimiter= ':' or ' ' and ',')
-            else:
-                for ip in ips:
-                    if (line.find(ip) != -1):
-                        # candidates.append(the_policy)
-                        if the_policy:
-                            r_file.write("%s, %s\n" % (the_policy.group()[1:len(the_policy.group())-1], ip))
-                            # https://stackoverflow.com/questions/47078585/python-f-write-is-not-taking-more-arguments
-                            # print(the_policy.group()[1:len(the_policy.group())-1], ' , ', ip)
-                        else:
-                            print('Error: Policy name not found')
+            if THIS_IS_POL in line: #if the line is a start of a policy
+                policy = (re.search(r':\s[_\-\w]+,',line)).strip(': ').rstrip(',') # Policy: 뒤에 나올 수 있는 정책 이름 추출 (delimiter= ':' or ' ' and ',')
+				if policy in policyIPsPair:
+				    out_file.write("%d\) " % (k))
+					k += 1
+                    nPorts = 0
+				    skip = false
+				else:
+				    skip = true
+            elif not skip:
+			    if THIS_IS_FROM in line:
+				    out_file.write("%s->" % ((re.search(r':\s[_\-\w]+,',line)).strip(': ').rstrip(',')))
+					regexTemp = re.escape(THIS_IS_TO) + r':\s[_\-\w]+'
+					out_file.write("%s 구간" % ((re.search(regexTemp,line)).replace(THIS_IS_TO + ': ', '')))
+				elif FOLLOWING_IS_SRC in line:
+				    out_file.write("- SIP: \n")
+				elif FOLLOWING_IS_DST in line:
+				    out_file.write("- DIP: \n")
+				elif re.search(r'[\d]+\.[\d]+\.[\d]+/[\d]+', line):   #### This only searches for IPv4 addresses
+				    out_file.write("%s\n" % re.search(r'[\d]+\.[\d]+\.[\d]+/[\d]+', line))
+                elif THIS_IS_PROTO in line:
+                    if not n_ports:
+                        out_file.write("- PORT: \n")
+                    out_file.write("%s " % ((re.search(r':\s[_\-\w]+,',line)).strip(': ').rstrip(',')))
+                elif THIS_IS_DPORT in line:
+                    start = int((re.search(r'\[[\d]+\-',line)).strip('[').rstrip('-'))
+                    end   = int((re.search(r'\-[\d]+\]',line)).strip('-').rstrip(']'))
+                    nThisSrv = end - start
+                    if not nThisSrv:
+                        out_file.write("%d\n" % (start))
+                    else:
+                        out_file.write("%d~%d\n" % (start, end))
+                    nPorts += 1 + nThisSrv
