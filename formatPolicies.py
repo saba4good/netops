@@ -84,18 +84,18 @@ if __name__ == '__main__':
                     nPorts = 0
                     skip = false
                 else:
-				    skip = true
+                    skip = true
             elif not skip:
                 if THIS_IS_FROM in line:
-				    out_file.write("%s->" % ((re.search(r':\s[_\-\w]+,',line)).strip(': ').rstrip(',')))
-					regexTemp = re.escape(THIS_IS_TO) + r':\s[_\-\w]+'
-					out_file.write("%s 구간" % ((re.search(regexTemp,line)).replace(THIS_IS_TO + ': ', '')))
+                    out_file.write("%s->" % ((re.search(r':\s[_\-\w]+,',line)).strip(': ').rstrip(',')))
+                    regexTemp = re.escape(THIS_IS_TO) + r':\s[_\-\w]+'
+                    out_file.write("%s 구간" % ((re.search(regexTemp,line)).replace(THIS_IS_TO + ': ', '')))
                 elif FOLLOWING_IS_SRC in line:
-				    out_file.write("- SIP: \n")
+                    out_file.write("- SIP: \n")
                 elif FOLLOWING_IS_DST in line:
-				    out_file.write("- DIP: \n")
+                    out_file.write("- DIP: \n")
                 elif re.search(r'[\d]+\.[\d]+\.[\d]+/[\d]+', line):   #### This only searches for IPv4 addresses
-				    out_file.write("%s\n" % re.search(r'[\d]+\.[\d]+\.[\d]+/[\d]+', line))
+                    out_file.write("%s\n" % re.search(r'[\d]+\.[\d]+\.[\d]+/[\d]+', line))
                 elif THIS_IS_PROTO in line:
                     if not n_ports:
                         out_file.write("- PORT: \n")
