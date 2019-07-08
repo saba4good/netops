@@ -4,16 +4,18 @@ A format: ip list line by line
 B format: Juniper FW shell 에서 'show security policies detail' 명령어의 output을 텍스트로 저장한 파일
 (putty 에서 읽을 수 있는 로그 파일 저장하면 됨.)
 방법: 해당 파이선 프로그램과 A, B 파일을 모두 한 폴더 안에 넣어두고, 그 폴더에서 다음 명령으로 실행시킨다.
-     python ip-finder-v.1.0.4.py [ip list file A] [show security policies detail output file B]
+     python extractPolicies.v.1.0.5.py [ip list file A] [show security policies detail output file B]
 A 파일을 'ips'라는 list로 저장해두고, B 파일을 한 라인씩 읽으면서 ips를 검색해서 있으면 결과 파일에 저장한다.
 '''
 #!/usr/bin/env python3
 import mmap
 import argparse
 import re              # regular expression
-#global variables
+from datetime import date
+### Global variables
 THIS_IS_POL='Policy:'  # Policy paragraph가 시작하는 것을 알 수 있는 구문 (모든 정책은 'Policy:'로 시작함)
-OUTPUT_FILE='ip-finder-output.txt'  # 결과 파일 이름
+### https://stackoverflow.com/questions/32490629/getting-todays-date-in-yyyy-mm-dd-in-python
+OUTPUT_FILE='policies-output-' + str(date.today()) + '.txt'  # 결과 파일 이름
 
 if __name__ == '__main__':
     # 이 프로그램을 실행할 때, 받아들일 arguments 2개
@@ -22,15 +24,17 @@ if __name__ == '__main__':
     parser.add_argument('policy_file', type=argparse.FileType('r'))
 
     args = parser.parse_args()
-    #args.policy_file
-    #args.indiv_ip_file
-
+    
     ips = [ip.rstrip('\n') for ip in args.indiv_ip_file]  # ip가 있는 파일에서 ip 를 list로 추출
     with args.policy_file as p_file, \
          open(OUTPUT_FILE, 'w') as r_file:
         for line in p_file:
             if THIS_IS_POL in line: #if the line is a start of a policy
-                thePolicy = (re.search(r':\s[_\-\w]+,',line)).strip(': ').rstrip(',')  # Policy: 뒤에 나올 수 있는 정책 이름 추출 (delimiter= ':' or ' ' and ',')
+			    ### 1) re.search() returns an object; so to get a string found, use returned_object.group(0)
+				### reference: https://stackoverflow.com/questions/15340582/python-extract-pattern-matches
+				### 2) '(?<=...)' is a positive lookbehind assertion. 이것을 사용하려면 ...에 해당하는 string이 fixed length여야 한다.
+				### reference: https://docs.python.org/3/library/re.html
+                thePolicy = (re.search(r'(?<=:\s)[_\-\w]+,',line)).group(0).rstrip(',')  # Policy: 뒤에 나올 수 있는 정책 이름 추출 (delimiter= ':' or ' ' and ',')
             elif re.search(r'[\d]+\.[\d]+\.[\d]+/[\d]+', line):  ## IPv4 정보가 있는 line인지 확인한다
                 for ip in ips:
                     if ip in line:
