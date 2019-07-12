@@ -18,7 +18,6 @@ Input file: domain name, host name, IP address
 
 '''
 #!/usr/bin/env python3
-#import mmap
 import argparse        # commandline arguments
 import re              # regular expression
 from datetime import date
@@ -70,5 +69,11 @@ if __name__ == '__main__':
             ### https://docs.python.org/3/library/re.html#re.Match.group
             ipMappedList.append(re.search("(?s:.*)(?<=[:\s])([\d]+\.[\d]+\.[\d]+\.[\d]+)", lookupOutput).group(1))
             #ipMappedList.append(re.search(r'(?s:.*)(?-s:[\d]+\.[\d]+\.[\d]+\.[\d]+)', lookupOutput).group(0))
-    print("IPs mapped: ", ipMappedList)
-    
+    #print("IPs mapped: ", ipMappedList)
+    verification = dict()
+    for idx, ipMapped in enumerate(ipMappedList):
+        if ipMapped == ipMappingList[idx]:
+            verification[domains[idx]] = True
+        else:
+            verification[domains[idx]] = False
+    print("Verification result: ", verification)
