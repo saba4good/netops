@@ -14,24 +14,37 @@ Input file: domain name, host name, IP address
 호스트 : fastbox IP :222.231.44.210
 
 사용방법: 해당 파이선 프로그램과 input 파일을 모두 한 폴더 안에 넣어두고, 그 폴더에서 다음 명령으로 실행시킨다.
-     python verifyARecord.v.0.0.1.py [input file ]
+     python verifyARecord.py [input file ] [CSR ID]
+
+예제:
+λ python verifyARecord.py test02.txt 617893
+domains:    ['fastbox.ezwel.com', 'm.fastbox.ezwel.com', 'fastbox.weltree.com']
+IPs:        ['222.231.44.170', '222.231.44.170', '222.231.44.210']
+권한 없는 응답:
+권한 없는 응답:
+권한 없는 응답:
+Verification result:  {'fastbox.ezwel.com': True, 'm.fastbox.ezwel.com': True, 'fastbox.weltree.com': True}
 
 '''
 #!/usr/bin/env python3
 import argparse        # commandline arguments
 import re              # regular expression
-from datetime import date
+#from datetime import date
 from subprocess import check_output  ### to use windows command https://stackoverflow.com/questions/14894993/running-windows-shell-commands-with-python
 ### Global variables
 THIS_IS_ROOT='도메인'  # domain paragraph가 시작하는 것을 알 수 있는 구문
 ### https://stackoverflow.com/questions/32490629/getting-todays-date-in-yyyy-mm-dd-in-python
-OUTPUT_FILE='output-nslookup-' + str(date.today()) + '.txt'  # 결과 파일 이름
+#OUTPUT_FILE='output-nslookup-' + str(date.today()) + '.txt'  # 결과 파일 이름
 
 if __name__ == '__main__':
     # 이 프로그램을 실행할 때, 받아들일 arguments 2개
     parser = argparse.ArgumentParser()
     parser.add_argument('dns_req_file', type=argparse.FileType('r'))
+    parser.add_argument('csr_id', type=str, nargs='?', default='000000')  ### nargs='?' make the argument optional with a default value
     args = parser.parse_args()
+    
+    ### https://stackoverflow.com/questions/4033723/how-do-i-access-command-line-arguments-in-python
+    outfile = 'CSR-' + args.csr_id + '-output-nslookup.txt'  # 결과 파일 이름
     
     domains = []
     ipMappingList = []
@@ -54,7 +67,7 @@ if __name__ == '__main__':
     
     commands = ''
     ipMappedList = []
-    with open(OUTPUT_FILE, 'w') as r_file:
+    with open(outfile, 'w') as r_file:
         for domain in domains:
             commands = "nslookup " + domain
             ### https://stackoverflow.com/questions/14894993/running-windows-shell-commands-with-python
@@ -68,7 +81,6 @@ if __name__ == '__main__':
             ### https://stackoverflow.com/questions/33232729/how-to-search-for-the-last-occurrence-of-a-regular-expression-in-a-string-in-pyt
             ### https://docs.python.org/3/library/re.html#re.Match.group
             ipMappedList.append(re.search("(?s:.*)(?<=[:\s])([\d]+\.[\d]+\.[\d]+\.[\d]+)", lookupOutput).group(1))
-            #ipMappedList.append(re.search(r'(?s:.*)(?-s:[\d]+\.[\d]+\.[\d]+\.[\d]+)', lookupOutput).group(0))
     #print("IPs mapped: ", ipMappedList)
     verification = dict()
     for idx, ipMapped in enumerate(ipMappedList):
