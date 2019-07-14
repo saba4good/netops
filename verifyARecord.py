@@ -29,6 +29,7 @@ Verification result:  {'fastbox.ezwel.com': True, 'm.fastbox.ezwel.com': True, '
 #!/usr/bin/env python3
 import argparse        # commandline arguments
 import re              # regular expression
+import dns.resolver    # to use this library, the package has to be installed  'sudo apt install python3-dnspython'
 #from datetime import date
 from subprocess import check_output  ### to use windows command https://stackoverflow.com/questions/14894993/running-windows-shell-commands-with-python
 ### Global variables
@@ -42,10 +43,10 @@ if __name__ == '__main__':
     parser.add_argument('dns_req_file', type=argparse.FileType('r'))
     parser.add_argument('csr_id', type=str, nargs='?', default='000000')  ### nargs='?' make the argument optional with a default value
     args = parser.parse_args()
-    
+
     ### https://stackoverflow.com/questions/4033723/how-do-i-access-command-line-arguments-in-python
     outfile = 'CSR-' + args.csr_id + '-output-nslookup.txt'  # 결과 파일 이름
-    
+
     domains = []
     ipMappingList = []
     #with args.dns_req_file as requests, open(OUTPUT_FILE, 'w') as r_file:
@@ -61,26 +62,19 @@ if __name__ == '__main__':
             elif re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+', line):  ## IPv4 정보가 있는 line인지 확인한다
                 domains.append(re.search(r'(?<=[:\s])[\.a-zA-Z]+',line).group(0) + "." + theRoot)
                 ipMappingList.append(re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+', line).group(0))
-                
+
     print("domains:   ", domains)
     print("IPs:       ", ipMappingList)
-    
-    commands = ''
+
     ipMappedList = []
     with open(outfile, 'w') as r_file:
         for domain in domains:
-            commands = "nslookup " + domain
-            ### https://stackoverflow.com/questions/14894993/running-windows-shell-commands-with-python
-            ### cmd code page 확인하는 방법: D:\>chcp  https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/chcp
-            ### https://thecoollife.tistory.com/18
-            ### codepage 949 https://en.wikipedia.org/wiki/Unified_Hangul_Code
-            lookupOutput = check_output(commands, shell=True).decode(encoding="CP949")
-            r_file.write("%s\n%s" % (commands, lookupOutput))
-            ### In multiline mode, ^ matches the position immediately following a newline and $ matches the position immediately preceding a newline.
-            ### https://stackoverflow.com/questions/587345/regular-expression-matching-a-multiline-block-of-text
-            ### https://stackoverflow.com/questions/33232729/how-to-search-for-the-last-occurrence-of-a-regular-expression-in-a-string-in-pyt
-            ### https://docs.python.org/3/library/re.html#re.Match.group
-            ipMappedList.append(re.search("(?s:.*)(?<=[:\s])([\d]+\.[\d]+\.[\d]+\.[\d]+)", lookupOutput).group(1))
+            ### https://stackoverflow.com/questions/13842116/how-do-we-get-txt-cname-and-soa-records-from-dnspython
+            ### https://stackoverflow.com/questions/3898363/set-specific-dns-server-using-dns-resolver-pythondns
+            answer = dns.resolver.query(domain, "A")
+            for data in answer:
+                r_file.write("\n%s\n%s" % ("nslookup " + domain, data.address))
+                ipMappedList.append(data.address)
     #print("IPs mapped: ", ipMappedList)
     verification = dict()
     for idx, ipMapped in enumerate(ipMappedList):
