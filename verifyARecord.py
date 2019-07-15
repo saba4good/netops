@@ -4,18 +4,14 @@ Input file: domain name, host name, IP address
 예제:
  * 추가 할 호스트 , IP
 1)도메인 : ezwel.com
-
 추가 할 호스트 , IP
 호스트 : fastbox IP :222.231.44.170
 호스트 : m.fastbox IP :222.231.44.170
-
 2)도메인 : weltree.com
 추가 할 호스트 , IP
 호스트 : fastbox IP :222.231.44.210
-
 사용방법: 해당 파이선 프로그램과 input 파일을 모두 한 폴더 안에 넣어두고, 그 폴더에서 다음 명령으로 실행시킨다.
      python verifyARecord.py [input file ] [CSR ID]
-
 예제:
 λ python verifyARecord.py test02.txt 617893
 domains:    ['fastbox.ezwel.com', 'm.fastbox.ezwel.com', 'fastbox.weltree.com']
@@ -24,7 +20,6 @@ IPs:        ['222.231.44.170', '222.231.44.170', '222.231.44.210']
 권한 없는 응답:
 권한 없는 응답:
 Verification result:  {'fastbox.ezwel.com': True, 'm.fastbox.ezwel.com': True, 'fastbox.weltree.com': True}
-
 '''
 #!/usr/bin/env python3
 import argparse        # commandline arguments
@@ -71,10 +66,16 @@ if __name__ == '__main__':
         for domain in domains:
             ### https://stackoverflow.com/questions/13842116/how-do-we-get-txt-cname-and-soa-records-from-dnspython
             ### https://stackoverflow.com/questions/3898363/set-specific-dns-server-using-dns-resolver-pythondns
-            answer = dns.resolver.query(domain, "A")
-            for data in answer:
-                r_file.write("\n%s\n%s" % ("nslookup " + domain, data.address))
-                ipMappedList.append(data.address)
+            print("domain: ", domain)
+            ### https://stackoverflow.com/questions/9245067/is-it-reasonable-in-python-to-check-for-a-specific-type-of-exception-using-isins
+            try:
+                answer = dns.resolver.query(domain, "A")
+                for data in answer:
+                    r_file.write("\nnslookup %s\n%s" % (domain, data.address))
+                    ipMappedList.append(data.address)
+            except dns.resolver.NXDOMAIN:
+                r_file.write("\nnslookup %s" % (domain))
+                r_file.write("\nNo such domain %s\n" % (domain))
     #print("IPs mapped: ", ipMappedList)
     verification = dict()
     for idx, ipMapped in enumerate(ipMappedList):
