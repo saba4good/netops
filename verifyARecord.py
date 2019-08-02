@@ -25,12 +25,9 @@ Verification result:  {'fastbox.ezwel.com': True, 'm.fastbox.ezwel.com': True, '
 import argparse        # commandline arguments
 import re              # regular expression
 import dns.resolver    # to use this library, the package has to be installed  'sudo apt install python3-dnspython'
-#from datetime import date
 from subprocess import check_output  ### to use windows command https://stackoverflow.com/questions/14894993/running-windows-shell-commands-with-python
 ### Global variables
 THIS_IS_ROOT='도메인'  # domain paragraph가 시작하는 것을 알 수 있는 구문
-### https://stackoverflow.com/questions/32490629/getting-todays-date-in-yyyy-mm-dd-in-python
-#OUTPUT_FILE='output-nslookup-' + str(date.today()) + '.txt'  # 결과 파일 이름
 
 if __name__ == '__main__':
     # 이 프로그램을 실행할 때, 받아들일 arguments 2개
@@ -44,7 +41,6 @@ if __name__ == '__main__':
 
     domains = []
     ipMappingList = []
-    #with args.dns_req_file as requests, open(OUTPUT_FILE, 'w') as r_file:
     with args.dns_req_file as requests:
         for line in requests:
             if THIS_IS_ROOT in line: #if the line is a start of a new domain
