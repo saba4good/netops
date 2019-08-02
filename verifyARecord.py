@@ -32,7 +32,7 @@ THIS_IS_ROOT='도메인'  # domain paragraph가 시작하는 것을 알 수 있�
 if __name__ == '__main__':
     # 이 프로그램을 실행할 때, 받아들일 arguments 2개
     parser = argparse.ArgumentParser()
-    parser.add_argument('dns_req_file', type=argparse.FileType('r'))
+    parser.add_argument('dns_req_file', type=argparse.FileType('r', encoding='UTF-8'))
     parser.add_argument('csr_id', type=str, nargs='?', default='000000')  ### nargs='?' make the argument optional with a default value
     args = parser.parse_args()
 
