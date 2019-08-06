@@ -48,7 +48,7 @@ if __name__ == '__main__':
                 ### reference: https://stackoverflow.com/questions/15340582/python-extract-pattern-matches
                 ### 2) '(?<=...)' is a positive lookbehind assertion. 이것을 사용하려면 ...에 해당하는 string이 fixed length여야 한다.
                 ### reference: https://docs.python.org/3/library/re.html
-                theRoot = (re.search(r'(?<=[:\s])[\.a-zA-Z]+',line)).group(0)  # 도메인 뒤에 나올 수 있는 domain name 추출 (pattern: alphabets or dot)
+                theRoot = (re.search(r'(?<=[:\s])[\.0-9a-zA-Z]+',line)).group(0)  # 도메인 뒤에 나올 수 있는 domain name 추출 (pattern: alphabets or dot)
                 #print("the root: ", theRoot)
             elif re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+', line):  ## IPv4 정보가 있는 line인지 확인한다
                 domains.append(re.search(r'(?<=[:\s])[\.a-zA-Z]+',line).group(0) + "." + theRoot)
