@@ -118,17 +118,17 @@ if __name__ == '__main__':
                     ipTemp = re.sub(r'/32$', '', re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+/[\d]+', line).group(0))
                     ipList.append(ipTemp)
                 elif THIS_IS_PROTO in line:
-                    ############## To write DST IP list into an output file #################
-                    ### WARNING: 삭제 예정인 ip가 src 와 dst에서 각각 있다면 아래 검사는 실패한다.
-                    ###          따라서 요청된 ip가 여러 구간(VDI, trust, untrust 등등)에 걸쳐 있지 않도록 주의한다.
-                    if set(policyIPsPair[policy]).issubset(set(ipList)):
-                        for ip in policyIPsPair[policy]:
-                            out_file.write("%s  (삭제)\n" % ip)
-                    else:
-                        for ip in ipList:
-                            out_file.write("%s\n" % ip)
-                    ####################################
-                    if not nPorts:
+                    if not nPorts: ## 파일에 한번만 쓰도록 하기 위하여.
+                        ############## To write DST IP list into an output file #################
+                        ### WARNING: 삭제 예정인 ip가 src 와 dst에서 각각 있다면 아래 검사는 실패한다.
+                        ###          따라서 요청된 ip가 여러 구간(VDI, trust, untrust 등등)에 걸쳐 있지 않도록 주의한다.
+                        if set(policyIPsPair[policy]).issubset(set(ipList)):
+                            for ip in policyIPsPair[policy]:
+                                out_file.write("%s  (삭제)\n" % ip)
+                        else:
+                            for ip in ipList:
+                                out_file.write("%s\n" % ip)
+                        ####################################
                         out_file.write("- PORT: \n")
                     out_file.write("%s " % ((re.search(r'(?<=:\s)[_\-\w]+,',line)).group(0).rstrip(',')))
                 elif THIS_IS_DPORT in line:
