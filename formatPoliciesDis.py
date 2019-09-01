@@ -85,8 +85,10 @@ if __name__ == '__main__':
                     ipList = []
                 elif FOLLOWING_IS_DST in line:
                     out_file.write("\"")
-                    for ip in ipList:
-                        out_file.write("%s " % ip)
+                    for idx, ip in enumerate(ipList):
+                        if idx:
+                            out_file.write("\n")
+                        out_file.write("%s" % ip)
                     out_file.write("\",")
                     ipList = []
                 elif re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+/[\d]+', line):   #### This only searches for IPv4 addresses
@@ -96,16 +98,18 @@ if __name__ == '__main__':
                 elif THIS_IS_PROTO in line:
                     if not nPorts: ## 파일에 한번만 쓰도록 하기 위하여.
                         out_file.write("\"")
-                        for ip in ipList:
-                            out_file.write("%s " % ip)
+                        for idx, ip in enumerate(ipList):
+                            if idx:
+                                out_file.write("\n")
+                            out_file.write("%s" % ip)
                         out_file.write("\",")
-                    out_file.write("%s " % ((re.search(r'(?<=:\s)[_\-\w]+,',line)).group(0).rstrip(',')))
+                    out_file.write("%s" % ((re.search(r'(?<=:\s)[_\-\w]+,',line)).group(0).rstrip(',')))
                 elif THIS_IS_DPORT in line:
                     start = int((re.search(r'(?<=\[)[\d]+\-',line).group(0)).rstrip('-'))
                     end   = int((re.search(r'(?<=\-)[\d]+\]',line).group(0)).rstrip(']'))
                     nThisSrv = end - start
                     if not nThisSrv:
-                        out_file.write("%d" % (start))
+                        out_file.write("%d " % (start))
                     else:
-                        out_file.write("%d~%d" % (start, end))
+                        out_file.write("%d~%d " % (start, end))
                     nPorts += 1 + nThisSrv
