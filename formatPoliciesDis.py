@@ -54,7 +54,8 @@ SRC_FLAG='src'
 DST_FLAG='dst'
 DSB_FLAG='disabled'
 
-OUTPUT_FILE='output-policies-formatted-' + str(date.today()) + '.txt'  # 결과 파일 이름
+#OUTPUT_FILE='output-policies-formatted-' + str(date.today()) + '.txt'  # 결과 파일 이름
+OUTPUT_FILE='output-policies-formatted-' + str(date.today()) + '.csv'  # 결과 파일 이름
 
 if __name__ == '__main__':
     # 이 프로그램을 실행할 때, 받아들일 arguments 2개
@@ -67,28 +68,26 @@ if __name__ == '__main__':
         open(OUTPUT_FILE, 'w') as out_file:
         skip = False
         k = 1
+        out_file.write("No,Policy Name,Source,Destination,Service/Port")
         for line in p_file: ## enumeration is for src/dst ips to be accumulated and written in the output file
             if THIS_IS_POL in line: #if the line is a start of a policy
                 policy = (re.search(r'(?<=:\s)[_\-\w]+,',line)).group(0).rstrip(',') # Policy: 뒤에 나올 수 있는 정책 이름 추출 (delimiter= ':' or ' ' and ',')
                 if DSB_FLAG in line:
-                    out_file.write("\n%d) " % (k))
+                    out_file.write("\n%d," % (k))
                     k += 1
                     nPorts = 0
                     skip = False
                 else:
                     skip = True
             elif not skip:
-                if THIS_IS_FROM in line:
-                    out_file.write("%s->" % ((re.search(r'(?<=:\s)[_\-\w]+,',line)).group(0).rstrip(',')))
-                    regexTemp = re.escape(THIS_IS_TO) + r'\s[_\-\w]+'
-                    out_file.write("%s 구간 %s\n" % ((re.search(regexTemp,line)).group(0).replace(THIS_IS_TO + ' ', ''), policy))
-                elif FOLLOWING_IS_SRC in line:
-                    out_file.write("- SIP: \n")
+                if FOLLOWING_IS_SRC in line:
+                    out_file.write("%s," % (policy))
                     ipList = []
                 elif FOLLOWING_IS_DST in line:
+                    out_file.write("\"")
                     for ip in ipList:
-                        out_file.write("%s\n" % ip)
-                    out_file.write("- DIP: \n")
+                        out_file.write("%s " % ip)
+                    out_file.write("\",")
                     ipList = []
                 elif re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+/[\d]+', line):   #### This only searches for IPv4 addresses
                     ### https://stackoverflow.com/questions/1038824/how-do-i-remove-a-substring-from-the-end-of-a-string-in-python
@@ -96,16 +95,17 @@ if __name__ == '__main__':
                     ipList.append(ipTemp)
                 elif THIS_IS_PROTO in line:
                     if not nPorts: ## 파일에 한번만 쓰도록 하기 위하여.
+                        out_file.write("\"")
                         for ip in ipList:
-                            out_file.write("%s\n" % ip)
-                        out_file.write("- PORT: \n")
+                            out_file.write("%s " % ip)
+                        out_file.write("\",")
                     out_file.write("%s " % ((re.search(r'(?<=:\s)[_\-\w]+,',line)).group(0).rstrip(',')))
                 elif THIS_IS_DPORT in line:
                     start = int((re.search(r'(?<=\[)[\d]+\-',line).group(0)).rstrip('-'))
                     end   = int((re.search(r'(?<=\-)[\d]+\]',line).group(0)).rstrip(']'))
                     nThisSrv = end - start
                     if not nThisSrv:
-                        out_file.write("%d\n" % (start))
+                        out_file.write("%d" % (start))
                     else:
-                        out_file.write("%d~%d\n" % (start, end))
+                        out_file.write("%d~%d" % (start, end))
                     nPorts += 1 + nThisSrv
