@@ -1,4 +1,6 @@
 '''
+Objectives:
+Juniper FW 의 최신 버전(ver. 12~19) 정책이 담긴 log 파일에서 스케줄링으로 disabled된 정책만을 뽑아낸다.
 Input:
 1개의 파일 (Security policies가 있는 파일 A)을 읽어들인다.
 A format: Juniper FW shell 에서 'show security policies detail | no-more' 명령어의 output을 텍스트로 저장한 파일

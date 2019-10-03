@@ -1,4 +1,7 @@
 '''
+Objectives:
+Juniper FW 의 최신 버전(ver. 12~19) 정책이 담긴 log 파일(input B)에서 IP 리스트 파일(input A)의 IP가 포함된 정책만을 리스트로 저장한다.
+Input:
 2개의 파일 (ip 리스트가 있는 파일 A, Security policies가 있는 파일 B)을 읽어들인다.
 A format: ip list line by line
 B format: Juniper FW shell 에서 'show security policies detail' 명령어의 output을 텍스트로 저장한 파일
@@ -24,7 +27,7 @@ if __name__ == '__main__':
     parser.add_argument('policy_file', type=argparse.FileType('r'))
 
     args = parser.parse_args()
-    
+
     ips = [ip.rstrip('\n') for ip in args.indiv_ip_file]  # ip가 있는 파일에서 ip 를 list로 추출
     with args.policy_file as p_file, \
         open(OUTPUT_FILE, 'w') as r_file:

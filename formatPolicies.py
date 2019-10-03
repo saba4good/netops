@@ -1,4 +1,8 @@
 '''
+Objectives:
+Juniper FW 의 최신 버전(ver. 12~19) 정책이 담긴 log 파일(input B)에서 정책 리스트 파일(input A)에 있는 정책 상세 내용을 뽑아내어 포맷을 만들되,
+source IP나 destination IP를 리스트 파일(input A)의 IP로 저장한다.
+Input:
 2개의 파일 (policy, ip pair 리스트가 있는 파일 A, Security policies가 있는 파일 B)을 읽어들인다.
 A format: policy name, ip pair list line by line
 B format: Juniper FW shell 에서 'show security policies detail | no-more' 명령어의 output을 텍스트로 저장한 파일

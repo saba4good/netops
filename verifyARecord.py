@@ -56,8 +56,8 @@ if __name__ == '__main__':
                 theRoot = (re.search(r'(?<=[:\s])[\.0-9a-zA-Z]+',line)).group(0)  # 도메인 뒤에 나올 수 있는 domain name 추출 (pattern: alphabets or dot)
                 #print("the root: ", theRoot)
             elif re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+', line):  ## IPv4 정보가 있는 line인지 확인한다
-                if theRoot in re.search(r'(?<=[:\s])[\.\-0-9a-zA-Z]+',line).group(0):
-                    domains.append(re.search(r'(?<=[:\s])[\.\-0-9a-zA-Z]+',line).group(0))
+                if theRoot in re.search(r'(?<=[:\s])[\.\-0-9a-zA-Z]+',line).group(0):  ## 요청 파일의 host name 필드에 도메인 네임이 함께 있는지를 테스트한다.
+                    domains.append(re.search(r'(?<=[:\s])[\.\-0-9a-zA-Z]+',line).group(0))  ## 예시: 호스트: blog.ez.com
                 else:
                     domains.append(re.search(r'(?<=[:\s])[\.\-0-9a-zA-Z]+',line).group(0) + "." + theRoot)
                 ipMappingList.append(re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+', line).group(0))
