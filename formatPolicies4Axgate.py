@@ -16,7 +16,6 @@ references:
 - https://stackoverflow.com/questions/7427101/simple-argparse-example-wanted-1-argument-3-results
 - https://stackoverflow.com/questions/20063/whats-the-best-way-to-parse-command-line-arguments
 Parts of an input file example:
-
 '''
 #!/usr/bin/env python3
 import mmap
@@ -28,8 +27,10 @@ from datetime import date
 ## snat or dnat profile log
 START_OF_SNAT='run ip snat'
 START_OF_DNAT='run ip dnat'
-IS_PROFILE='profile'
+IS_PROFILE='nat profile '
 IS_NAT='source' # start phrase of each s/dnat in each profile
+STAT_NAT='static'
+DYN_NAT='dynamic'
 ## for policies log file
 THIS_IS_POL='ip security policy' # each policy starts with this, and in this line, there's zone, sequence number, and id.
 THIS_IS_FROM='from '
@@ -58,22 +59,33 @@ if __name__ == '__main__':
         snatFlag = False
         dnatFlag = False
         for line in nat_file:
-            if snatFlag == True:
-                if IS_PROFILE in line:
-                    profileId = re.search(r'(?<=\s)[\d]+$', line)
+            if IS_NAT in line:
+                if dnatFlag == True:
+                    if STAT_NAT in line:
+                        dnatDic[profileId].append((re.search(r'(?<=static\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) + " (NAT IP: " + (re.search(r'(?<=destination\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) +")")
+                    elif DYN_NAT in line:
+                        dnatDic[profileId].append((re.search(r'(?<=dynamic\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) + " (NAT IP: " + (re.search(r'(?<=destination\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) +")")
+                elif snatFlag == True:
+                    if STAT_NAT in line:
+                        snatDic[profileId].append((re.search(r'(?<=source\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) + " (NAT IP: " + (re.search(r'(?<=static\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) +")")
+                    elif DYN_NAT in line:
+                        snatDic[profileId].append((re.search(r'(?<=source\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) + " (NAT IP: " + (re.search(r'(?<=dynamic\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) +")")
+            elif IS_PROFILE in line:
+                if dnatFlag == True:
+                    profileId = (re.search(r'[\d]+$', line)).group(0)
+                    dnatDic[profileId] = []
+                elif snatFlag == True:
+                    profileId = (re.search(r'[\d]+$', line)).group(0)
                     snatDic[profileId] = []
-                    idx = 0
-                elif IS_NAT in line:  ## 아래 line은 첫번째 ip만 긁어옴. 모든 ip를 다 긁어오도록 해보자!
-                    snatDic[profileId][idx] = re.sub(r'/32$', '', re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+/[\d]+', line).group(0))
-                    idx += 1
             elif START_OF_SNAT in line:
                 snatFlag = True
                 dnatFlag = False
             elif START_OF_DNAT in line:
                 dnatFlag = True
                 snatFlag = False
-
-
+    print("snat: ", snatDic)
+    print("dnat: ", dnatDic)
+    '''
     with args.policy_file as p_file, \
         open(OUTPUT_FILE, 'w') as out_file:
         skip = False
@@ -123,3 +135,4 @@ if __name__ == '__main__':
                     else:
                         out_file.write("%d~%d " % (start, end))
                     nPorts += 1 + nThisSrv
+'''
