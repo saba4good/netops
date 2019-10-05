@@ -28,19 +28,19 @@ from datetime import date
 START_OF_SNAT='run ip snat'
 START_OF_DNAT='run ip dnat'
 IS_PROFILE='nat profile '
-IS_NAT='source' # start phrase of each s/dnat in each profile
+IS_A_NAT='source' # start phrase of each s/dnat in each profile
 STAT_NAT='static'
 DYN_NAT='dynamic'
-## for policies log file
-THIS_IS_POL='ip security policy' # each policy starts with this, and in this line, there's zone, sequence number, and id.
-THIS_IS_FROM='from '
-THIS_IS_TO='to '
-THIS_IS_SRC='source'
 IS_SNAT='snat-profile '
-THIS_IS_DST='destination'
 IS_DNAT='dnat-profile '
-THIS_IS_DPORT='service proto'
-THIS_IS_ACTION='action' # 'pass' or 'drop'
+## for policies log file
+IS_POL='ip security policy' # each policy starts with this, and in this line, there's zone, sequence number, and id.
+IS_FROM='from '
+IS_TO='to '
+IS_SRC='source'
+IS_DST='destination'
+IS_DPORT='service proto'
+IS_ACTION='action' # 'pass' or 'drop'
 SRC_FLAG='src'
 DST_FLAG='dst'
 EN_FLAG='enable' # this line is the last for each policy.
@@ -60,7 +60,7 @@ if __name__ == '__main__':
         snatFlag = False
         dnatFlag = False
         for line in nat_file:
-            if IS_NAT in line:
+            if IS_A_NAT in line:
                 if dnatFlag == True:
                     if STAT_NAT in line:
                         natDic[profileId].append((re.search(r'(?<=static\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) + " (NAT IP: " + (re.search(r'(?<=destination\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) +")")
@@ -92,7 +92,7 @@ if __name__ == '__main__':
         k = 1
         out_file.write("No,Policy ID,Source,Destination,Service/Port,Action")
         for line in p_file: ## enumeration is for src/dst ips to be accumulated and written in the output file
-            if THIS_IS_POL in line: #if the line is a start of a policy
+            if IS_POL in line: #if the line is a start of a policy
                 policy = (re.search(r'(?<=:\s)[_\-\w]+,',line)).group(0).rstrip(',') # Policy: 뒤에 나올 수 있는 정책 이름 추출 (delimiter= ':' or ' ' and ',')
                 if DSB_FLAG in line:
                     out_file.write("\n%d," % (k))
@@ -117,7 +117,7 @@ if __name__ == '__main__':
                     ### https://stackoverflow.com/questions/1038824/how-do-i-remove-a-substring-from-the-end-of-a-string-in-python
                     ipTemp = re.sub(r'/32$', '', re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+/[\d]+', line).group(0))
                     ipList.append(ipTemp)
-                elif THIS_IS_PROTO in line:
+                elif IS_PROTO in line:
                     if not nPorts: ## 파일에 한번만 쓰도록 하기 위하여.
                         out_file.write("\"")
                         for idx, ip in enumerate(ipList):
@@ -126,7 +126,7 @@ if __name__ == '__main__':
                             out_file.write("%s" % ip)
                         out_file.write("\",")
                     out_file.write("%s" % ((re.search(r'(?<=:\s)[_\-\w]+,',line)).group(0).rstrip(',')))
-                elif THIS_IS_DPORT in line:
+                elif IS_DPORT in line:
                     start = int((re.search(r'(?<=\[)[\d]+\-',line).group(0)).rstrip('-'))
                     end   = int((re.search(r'(?<=\-)[\d]+\]',line).group(0)).rstrip(']'))
                     nThisSrv = end - start
