@@ -36,7 +36,9 @@ THIS_IS_POL='ip security policy' # each policy starts with this, and in this lin
 THIS_IS_FROM='from '
 THIS_IS_TO='to '
 THIS_IS_SRC='source'
+IS_SNAT='snat-profile '
 THIS_IS_DST='destination'
+IS_DNAT='dnat-profile '
 THIS_IS_DPORT='service proto'
 THIS_IS_ACTION='action' # 'pass' or 'drop'
 SRC_FLAG='src'
@@ -53,8 +55,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    snatDic = {}  # leet-mock-0011.py 참조
-    dnatDic = {}
+    natDic = {}  # leet-mock-0011.py 참조
     with args.nat_file as nat_file:
         snatFlag = False
         dnatFlag = False
@@ -62,29 +63,28 @@ if __name__ == '__main__':
             if IS_NAT in line:
                 if dnatFlag == True:
                     if STAT_NAT in line:
-                        dnatDic[profileId].append((re.search(r'(?<=static\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) + " (NAT IP: " + (re.search(r'(?<=destination\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) +")")
+                        natDic[profileId].append((re.search(r'(?<=static\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) + " (NAT IP: " + (re.search(r'(?<=destination\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) +")")
                     elif DYN_NAT in line:
-                        dnatDic[profileId].append((re.search(r'(?<=dynamic\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) + " (NAT IP: " + (re.search(r'(?<=destination\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) +")")
+                        natDic[profileId].append((re.search(r'(?<=dynamic\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) + " (NAT IP: " + (re.search(r'(?<=destination\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) +")")
                 elif snatFlag == True:
                     if STAT_NAT in line:
-                        snatDic[profileId].append((re.search(r'(?<=source\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) + " (NAT IP: " + (re.search(r'(?<=static\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) +")")
+                        natDic[profileId].append((re.search(r'(?<=source\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) + " (NAT IP: " + (re.search(r'(?<=static\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) +")")
                     elif DYN_NAT in line:
-                        snatDic[profileId].append((re.search(r'(?<=source\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) + " (NAT IP: " + (re.search(r'(?<=dynamic\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) +")")
+                        natDic[profileId].append((re.search(r'(?<=source\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) + " (NAT IP: " + (re.search(r'(?<=dynamic\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) +")")
             elif IS_PROFILE in line:
                 if dnatFlag == True:
-                    profileId = (re.search(r'[\d]+$', line)).group(0)
-                    dnatDic[profileId] = []
+                    profileId = IS_DNAT + (re.search(r'[\d]+$', line)).group(0)
+                    natDic[profileId] = []
                 elif snatFlag == True:
-                    profileId = (re.search(r'[\d]+$', line)).group(0)
-                    snatDic[profileId] = []
+                    profileId = IS_SNAT + (re.search(r'[\d]+$', line)).group(0)
+                    natDic[profileId] = []
             elif START_OF_SNAT in line:
                 snatFlag = True
                 dnatFlag = False
             elif START_OF_DNAT in line:
                 dnatFlag = True
                 snatFlag = False
-    print("snat: ", snatDic)
-    print("dnat: ", dnatDic)
+    print("nat: ", natDic)
     '''
     with args.policy_file as p_file, \
         open(OUTPUT_FILE, 'w') as out_file:
