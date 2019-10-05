@@ -24,7 +24,7 @@ import re              # regular expression
 from datetime import date
 
 ### global variables
-## snat or dnat profile log
+## for a snat or dnat profile log processing
 START_OF_SNAT='run ip snat'
 START_OF_DNAT='run ip dnat'
 IS_PROFILE='nat profile '  ## the last white space is important to distinguish this from the starting command of nat profiles
@@ -33,7 +33,7 @@ STAT_NAT='static'
 DYN_NAT='dynamic'
 IS_SNAT='snat-profile '
 IS_DNAT='dnat-profile '
-## for policies log file
+## for a policy log file processing
 IS_POL='ip security policy ' # each policy starts with this, and in this line, there's zone, sequence number, and id.
                              # the last white space is important to distinguish this from the starting command of policies
 IS_SRC='source'
@@ -52,6 +52,8 @@ PRM_FLAG='pass'
 DRP_FLAG='drop'
 STE_EN='enabled' # 
 STE_DS='disabled'
+PORT_SNG='dport eq'
+PORT_MLT='dport multi'
 #GRP_FLAG='user-group'
 GRP_FLAG='group'
 ANY_FLAG='any'
@@ -65,8 +67,10 @@ if __name__ == '__main__':
     parser.add_argument('policy_file', type=argparse.FileType('r'), help="log for 'show run ip security policy'")
 
     args = parser.parse_args()
-
-    natDic = {}  # leet-mock-0011.py 참조
+    
+    ########################################
+    ######### NAT profile processing #######
+    natDic = {}
     with args.nat_file as nat_file:
         snatFlag = False
         dnatFlag = False
@@ -95,8 +99,9 @@ if __name__ == '__main__':
             elif START_OF_DNAT in line:
                 dnatFlag = True
                 snatFlag = False
-    #print("nat: ", natDic)
     
+    ########################################
+    ######### Policies processing ##########
     with args.policy_file as p_file, \
         open(OUTPUT_FILE, 'w') as out_file:
         out_file.write("Zone,Policy ID,Source,Destination,Service/Port,Action,State\n")
@@ -110,7 +115,6 @@ if __name__ == '__main__':
                         polDetails[ENT_SRC].append((re.search(r'(?<=group\s)[a-zA-Z]+',line)).group(0))
                     else:
                         polDetails[ENT_SRC].append((re.search(r'(?<=source\s)[a-zA-Z]+',line)).group(0))
-#                print("Source: ", polDetails[ENT_SRC])
             elif IS_DST in line: #if the line has a destination address
                 if re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+/[\d]+', line):
                     polDetails[ENT_DST].append(re.sub(r'/32', '', re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+/[\d]+', line).group(0)))
@@ -119,7 +123,6 @@ if __name__ == '__main__':
                         polDetails[ENT_DST].extend(natDic[(re.search(r'dnat-profile\s[\d]+',line)).group(0)])  ## if append() is used, the list will be added inside a list
                     else:
                         polDetails[ENT_DST].append((re.search(r'(?<=destination\s)[a-zA-Z]+',line)).group(0))
-#                print("DST : ", polDetails[ENT_DST])
             elif IS_DELIMITER in line:
                 if IS_SRC in polDetails and polDetails[ENT_SRC]:  # after the first policy ID line appeared and source address field has some value in it.
                     if not polDetails[ENT_SRV]:     # when the destination port field didn't appear in the policy details, it means it's "any".
@@ -146,9 +149,19 @@ if __name__ == '__main__':
                         out_file.write("\",")
                     else: 
                         out_file.write("%s," % polDetails[ENT_DST][0])
-                    out_file.write("%s,%s,%s\n" % (polDetails[ENT_SRV], polDetails[ENT_ACT], polDetails[ENT_STE]))
+                    #### service/port field formatting ####
+                    if len(polDetails[ENT_SRV])>1:  # when dip field has more than one ip in it.
+                        out_file.write("\"")
+                        for port in polDetails[ENT_SRV]:
+                            if port != polDetails[ENT_SRV][-1]:
+                                out_file.write("%s\n" % port)
+                            else:
+                                out_file.write("%s" % port)
+                        out_file.write("\",")
+                    else: 
+                        out_file.write("%s," % polDetails[ENT_SRV][0])
+                    out_file.write("%s,%s\n" % (polDetails[ENT_ACT], polDetails[ENT_STE]))
             elif IS_POL in line: #if the line is a start of a policy
-                #print("currently on: ", line)
                 zone = (re.search(r'(?<=from\s)[a-zA-Z\s]+',line)).group(0).rstrip(" ") # from 뒤에 나올 zone 추출 (delimiter= 'from ' and digits)
                 policyId = (re.search(r'(?<=id\s)[\d]+$',line)).group(0) # id 뒤에 나올 정책 id 추출 (delimiter= 'id ' and new line)
                 out_file.write("%s,%s," % (zone, policyId))
@@ -159,7 +172,16 @@ if __name__ == '__main__':
             elif IS_STATE in line: 
                 polDetails[ENT_STE]=STE_EN.capitalize()
             elif IS_DPORT in line: #if the line has a service port defined
-                pass
+                protocol = (re.search(r'(?<=proto\s)[\w]+',line)).group(0) # proto 뒤에 나올 protocol name 추출 (delimiter= 'proto ' and white space)
+                if PORT_SNG in line:
+                    polDetails[ENT_SRV].append(protocol + (re.search(r'(?<=dport eq\s)[\d]+',line)).group(0))
+                elif PORT_MLT in line:
+                    #ports = ((re.search(r'(?<=dport multi\s)[\d\s]+',line)).group(0)).split() # to make a list from a string that comes after 'dport multi'
+                    #(protocol + port for port in ports)                                       # then this line add a string to every elements in a list
+                    # references: https://stackoverflow.com/questions/2050637/appending-the-same-string-to-a-list-of-strings-in-python
+                    polDetails[ENT_SRV].extend(protocol + port for port in ((re.search(r'(?<=dport multi\s)[\d\s]+',line)).group(0)).split())
+                else: ## port number 가 없는 경우 (예: icmp)
+                    polDetails[ENT_SRV].append(protocol)
             elif IS_SNAT in line:
                 sProf = IS_SNAT + (re.search(r'[\d]+$', line)).group(0)
                 if ANY_FLAG in polDetails[ENT_SRC]:
@@ -168,4 +190,5 @@ if __name__ == '__main__':
                     sips = polDetails[ENT_SRC]
                     polDetails[ENT_SRC] = []
                     for sip in sips:
+                        ### next() references: https://stackoverflow.com/questions/9542738/python-find-in-list
                         polDetails[ENT_SRC].append(next(ipNat for ipNat in natDic[sProf] if sip in ipNat))
