@@ -9,9 +9,9 @@ B format: 'show run ip security policy' 명령어의 output을 텍스트로 저�
 방법: 해당 파이선 프로그램과 A 파일을 모두 한 폴더 안에 넣어두고, 그 폴더에서 다음 명령으로 실행시킨다.
      python formatPolicies4Axgate.v.1.0.1.py [snat/dnat log file A] [security policy log file B]
      e.g.) python formatPoliciesDis.v.0.0.1.py FW-nat.log FW-policy.log
-- A 파일을 한 라인씩 읽으면서 snat dictionary 와 dnat dictionary를 만든다.
-- B 파일을 한 라인씩 읽으면서 정책의 source, destination, port 순으로 읽어서 list를 만든다.
-- 나머지 list를 포맷하여 파일에 저장한다.
+- A 파일을 한 라인씩 읽으면서 nat dictionary를 만든다.
+- B 파일을 한 라인씩 읽으면서 정책의 source, destination, port, action, state을 읽어서 dictionary를 만든다.
+- 각 정책을 읽고 나면 정책 dictionary를 포맷하여 파일에 저장한다.
 references:
 - https://stackoverflow.com/questions/7427101/simple-argparse-example-wanted-1-argument-3-results
 - https://stackoverflow.com/questions/20063/whats-the-best-way-to-parse-command-line-arguments
@@ -27,23 +27,34 @@ from datetime import date
 ## snat or dnat profile log
 START_OF_SNAT='run ip snat'
 START_OF_DNAT='run ip dnat'
-IS_PROFILE='nat profile '
+IS_PROFILE='nat profile '  ## the last white space is important to distinguish this from the starting command of nat profiles
 IS_A_NAT='source' # start phrase of each s/dnat in each profile
 STAT_NAT='static'
 DYN_NAT='dynamic'
 IS_SNAT='snat-profile '
 IS_DNAT='dnat-profile '
 ## for policies log file
-IS_POL='ip security policy' # each policy starts with this, and in this line, there's zone, sequence number, and id.
-IS_FROM='from '
-IS_TO='to '
+IS_POL='ip security policy ' # each policy starts with this, and in this line, there's zone, sequence number, and id.
+                             # the last white space is important to distinguish this from the starting command of policies
 IS_SRC='source'
 IS_DST='destination'
-IS_DPORT='service proto'
+IS_NAT='nat-profile'
+IS_DPORT='service'
 IS_ACTION='action' # 'pass' or 'drop'
-SRC_FLAG='src'
-DST_FLAG='dst'
-EN_FLAG='enable' # this line is the last for each policy.
+IS_STATE='enable' # This can be omitted for disabled policies. 
+IS_DELIMITER='!' # delimiter for each policy
+ENT_SRC=IS_SRC
+ENT_DST=IS_DST
+ENT_SRV=IS_DPORT
+ENT_ACT=IS_ACTION
+ENT_STE='state'
+PRM_FLAG='pass'
+DRP_FLAG='drop'
+STE_EN='enabled' # 
+STE_DS='disabled'
+#GRP_FLAG='user-group'
+GRP_FLAG='group'
+ANY_FLAG='any'
 
 OUTPUT_FILE='output-policies-formatted-' + str(date.today()) + '.csv'  # 결과 파일 이름
 
@@ -84,55 +95,77 @@ if __name__ == '__main__':
             elif START_OF_DNAT in line:
                 dnatFlag = True
                 snatFlag = False
-    print("nat: ", natDic)
-    '''
+    #print("nat: ", natDic)
+    
     with args.policy_file as p_file, \
         open(OUTPUT_FILE, 'w') as out_file:
-        skip = False
-        k = 1
-        out_file.write("No,Policy ID,Source,Destination,Service/Port,Action")
-        for line in p_file: ## enumeration is for src/dst ips to be accumulated and written in the output file
-            if IS_POL in line: #if the line is a start of a policy
-                policy = (re.search(r'(?<=:\s)[_\-\w]+,',line)).group(0).rstrip(',') # Policy: 뒤에 나올 수 있는 정책 이름 추출 (delimiter= ':' or ' ' and ',')
-                if DSB_FLAG in line:
-                    out_file.write("\n%d," % (k))
-                    k += 1
-                    nPorts = 0
-                    skip = False
+        out_file.write("Zone,Policy ID,Source,Destination,Service/Port,Action,State\n")
+        polDetails = {}
+        for line in p_file: ## Output file will be written at the end of each policy.
+            if IS_SRC in line: #if the line has a source address
+                if re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+/[\d]+', line):
+                    polDetails[ENT_SRC].append(re.sub(r'/32', '', re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+/[\d]+', line).group(0)))
                 else:
-                    skip = True
-            elif not skip:
-                if FOLLOWING_IS_SRC in line:
-                    out_file.write("%s," % (policy))
-                    ipList = []
-                elif FOLLOWING_IS_DST in line:
-                    out_file.write("\"")
-                    for idx, ip in enumerate(ipList):
-                        if idx:
-                            out_file.write("\n")
-                        out_file.write("%s" % ip)
-                    out_file.write("\",")
-                    ipList = []
-                elif re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+/[\d]+', line):   #### This only searches for IPv4 addresses
-                    ### https://stackoverflow.com/questions/1038824/how-do-i-remove-a-substring-from-the-end-of-a-string-in-python
-                    ipTemp = re.sub(r'/32$', '', re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+/[\d]+', line).group(0))
-                    ipList.append(ipTemp)
-                elif IS_PROTO in line:
-                    if not nPorts: ## 파일에 한번만 쓰도록 하기 위하여.
-                        out_file.write("\"")
-                        for idx, ip in enumerate(ipList):
-                            if idx:
-                                out_file.write("\n")
-                            out_file.write("%s" % ip)
-                        out_file.write("\",")
-                    out_file.write("%s" % ((re.search(r'(?<=:\s)[_\-\w]+,',line)).group(0).rstrip(',')))
-                elif IS_DPORT in line:
-                    start = int((re.search(r'(?<=\[)[\d]+\-',line).group(0)).rstrip('-'))
-                    end   = int((re.search(r'(?<=\-)[\d]+\]',line).group(0)).rstrip(']'))
-                    nThisSrv = end - start
-                    if not nThisSrv:
-                        out_file.write("%d " % (start))
+                    if GRP_FLAG in line:
+                        polDetails[ENT_SRC].append((re.search(r'(?<=group\s)[a-zA-Z]+',line)).group(0))
                     else:
-                        out_file.write("%d~%d " % (start, end))
-                    nPorts += 1 + nThisSrv
-'''
+                        polDetails[ENT_SRC].append((re.search(r'(?<=source\s)[a-zA-Z]+',line)).group(0))
+#                print("Source: ", polDetails[ENT_SRC])
+            elif IS_DST in line: #if the line has a destination address
+                if re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+/[\d]+', line):
+                    polDetails[ENT_DST].append(re.sub(r'/32', '', re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+/[\d]+', line).group(0)))
+                else:
+                    if IS_DNAT in line:
+                        polDetails[ENT_DST].extend(natDic[(re.search(r'dnat-profile\s[\d]+',line)).group(0)])  ## if append() is used, the list will be added inside a list
+                    else:
+                        polDetails[ENT_DST].append((re.search(r'(?<=destination\s)[a-zA-Z]+',line)).group(0))
+#                print("DST : ", polDetails[ENT_DST])
+            elif IS_DELIMITER in line:
+                if IS_SRC in polDetails and polDetails[ENT_SRC]:  # after the first policy ID line appeared and source address field has some value in it.
+                    if not polDetails[ENT_SRV]:     # when the destination port field didn't appear in the policy details, it means it's "any".
+                        polDetails[ENT_SRV].append(ANY_FLAG.capitalize())
+                    #### source field formatting ####
+                    if len(polDetails[ENT_SRC])>1:  # when sip field has more than one ip in it.
+                        out_file.write("\"")
+                        for sip in polDetails[ENT_SRC]:
+                            if sip != polDetails[ENT_SRC][-1]:
+                                out_file.write("%s\n" % sip)
+                            else:
+                                out_file.write("%s" % sip)
+                        out_file.write("\",")
+                    else: 
+                        out_file.write("%s," % polDetails[ENT_SRC][0])
+                    #### destination field formatting ####
+                    if len(polDetails[ENT_DST])>1:  # when dip field has more than one ip in it.
+                        out_file.write("\"")
+                        for dip in polDetails[ENT_DST]:
+                            if dip != polDetails[ENT_DST][-1]:
+                                out_file.write("%s\n" % dip)
+                            else:
+                                out_file.write("%s" % dip)
+                        out_file.write("\",")
+                    else: 
+                        out_file.write("%s," % polDetails[ENT_DST][0])
+                    out_file.write("%s,%s,%s\n" % (polDetails[ENT_SRV], polDetails[ENT_ACT], polDetails[ENT_STE]))
+            elif IS_POL in line: #if the line is a start of a policy
+                #print("currently on: ", line)
+                zone = (re.search(r'(?<=from\s)[a-zA-Z\s]+',line)).group(0).rstrip(" ") # from 뒤에 나올 zone 추출 (delimiter= 'from ' and digits)
+                policyId = (re.search(r'(?<=id\s)[\d]+$',line)).group(0) # id 뒤에 나올 정책 id 추출 (delimiter= 'id ' and new line)
+                out_file.write("%s,%s," % (zone, policyId))
+                polDetails = {ENT_SRC:[],ENT_DST:[],ENT_SRV:[],ENT_ACT:PRM_FLAG.capitalize(),ENT_STE:STE_DS.capitalize()} # to initialize policy details
+            elif IS_ACTION in line: 
+                if DRP_FLAG in line:
+                    polDetails[ENT_ACT]=DRP_FLAG.capitalize()
+            elif IS_STATE in line: 
+                polDetails[ENT_STE]=STE_EN.capitalize()
+            elif IS_DPORT in line: #if the line has a service port defined
+                pass
+            elif IS_SNAT in line:
+                sProf = IS_SNAT + (re.search(r'[\d]+$', line)).group(0)
+                if ANY_FLAG in polDetails[ENT_SRC]:
+                    polDetails[ENT_SRC].extend(natDic[sProf])
+                else:
+                    sips = polDetails[ENT_SRC]
+                    polDetails[ENT_SRC] = []
+                    for sip in sips:
+                        polDetails[ENT_SRC].append(next(ipNat for ipNat in natDic[sProf] if sip in ipNat))
