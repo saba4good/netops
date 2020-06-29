@@ -35,6 +35,7 @@ Parts of an input file example:
 import mmap
 import argparse
 import re              # regular expression
+import copy
 from datetime import date
 
 ##### global variables ########################################################
@@ -128,40 +129,69 @@ if __name__ == '__main__':
                 elif rPort == '443':
                     rPort = 'https'
                 statsDic[(rSvrNo, rPort)] = (currSessions, currState) ## I_CURRSESS = 0; I_CURRSTAT = 1
-                print("rSvrNo, rPort: ",rSvrNo, rPort)
-                print("currSessions, currState: ", statsDic[(rSvrNo, rPort)])
+                #print("rSvrNo, rPort: ",rSvrNo, rPort)
+                #print("currSessions, currState: ", statsDic[(rSvrNo, rPort)])
     #print ("statsDic = ", statsDic)
     ##############################################################################
     ######### The rest of SLB settings and output processing ##########
     with args.slb_file as r_file, \
         open(OUTPUT_FILE, 'w') as out_file:
         for line in r_file:
-            if START_OF_SETTINGS in line:
+            if START_OF_SETTINGS in line:   ### 프로세싱 필요한 라인을 찾는다.
                 break
         prevFlag = INIT_FLAG
         idx = 0
         settingsTable = []
-        for line in r_file: ## Output file will be written at the end of each policy.
+        for line in r_file: ## Output file will be written at the end of each policy. ## 위에서 'break'된 라인 바로 이후부터 프로세싱함.
             if re.search(r'[\d]+\:\sIP4\s', line):
-                settingsTable.append(["" for i in range(LAST_IDX+1)])
-                settingsTable[idx][IDX_VINDEX] = (re.search(r'[\d]+(?=\:\sIP4\s)', line)).group(0)
-                settingsTable[idx][IDX_VIP] = (re.search(r'(?<=\:\sIP4\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0)
+                settingsTable.append(["" for i in range(LAST_IDX+1)]) ## 새로운 데이터 row를 만든다.
+                #### To see if there's anonmally
+                '''
+                difference = len(settingsTable) - idx
+                if difference != 1:
+                    print("***** NEW   ** Difference: ", difference, ", length of settingsTable: ", len(settingsTable), ", idx = ", idx)
+                    print("      settingsTable[idx]:          ", settingsTable[idx])
+                    print("      settingsTable[Last element]: ", settingsTable[-1])
+                '''
+                #################################
+                settingsTable[-1][IDX_VINDEX] = (re.search(r'[\d]+(?=\:\sIP4\s)', line)).group(0)  ## 맨 마지막에 만들어진 데이터 row를 변경함.
+                settingsTable[-1][IDX_VIP] = (re.search(r'(?<=\:\sIP4\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0)
                 prevFlag = FLAG_VIP
             elif re.search(r'action group, rport', line):
                 if prevFlag == FLAG_RIP:
-                    settingsTable.append(settingsTable[idx-1])
-                settingsTable[idx][IDX_VPORT] = (re.search(r'[\w]+(?=\:\sredirect\s)', line)).group(0)
-                settingsTable[idx][IDX_VGROUP_NO] = (re.search(r'(?<=,\sgroup\s)[\d]+', line)).group(0)
-                settingsTable[idx][IDX_G_METRIC] = metrDic[settingsTable[idx][IDX_VGROUP_NO]]
-                settingsTable[idx][IDX_RPORT] = (re.search(r'(?<=,\srport\s)[\w]+', line)).group(0)
+                    settingsTable.append(copy.deepcopy(settingsTable[-1]))  ## 맨 마지막 데이터 row를 복사해서 새로운 데이터 row를 만든다.
+                #### To see if there's anonmally
+                '''
+                difference = len(settingsTable) - idx
+                if difference != 1:
+                    print("***** VPORT ** Difference: ", difference, ", length of settingsTable: ", len(settingsTable), ", idx = ", idx)
+                    print("      settingsTable[idx]:          ", settingsTable[idx])
+                    print("      settingsTable[Last element]: ", settingsTable[-1])
+                '''
+                #################################
+                settingsTable[-1][IDX_VPORT] = (re.search(r'[\w]+(?=\:\sredirect\s)', line)).group(0)
+                settingsTable[-1][IDX_VGROUP_NO] = (re.search(r'(?<=,\sgroup\s)[\d]+', line)).group(0)
+                settingsTable[-1][IDX_G_METRIC] = metrDic[settingsTable[-1][IDX_VGROUP_NO]]
+                settingsTable[-1][IDX_RPORT] = (re.search(r'(?<=,\srport\s)[\w]+', line)).group(0)
                 prevFlag = FLAG_VPORT
             elif re.search(r'[\d]+:\s[\d]+\.[\d]+\.[\d]+\.[\d]+', line):
                 if prevFlag == FLAG_RIP:
-                    settingsTable.append(settingsTable[idx-1].copy())   ## copy() 를 이용하지 않으면 call by reference 로 복사하여 새로운 것을 편집하면 예전 것도 변경됨.
-                settingsTable[idx][IDX_RSVR_NO] = (re.search(r'[\d]+(?=\:\s[\d])', line)).group(0)
-                settingsTable[idx][IDX_RIP] = (re.search(r'(?<=[\d]\:\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) ## "re.error: look-behind requires fixed-width patter"로 인해 ":" 앞에 오는 숫자는 하나만 보는 걸로 수정함.
-                settingsTable[idx][IDX_CURRSTAT] = statsDic[(settingsTable[idx][IDX_RSVR_NO], settingsTable[idx][IDX_RPORT])][I_CURRSTAT]
-                settingsTable[idx][IDX_CURRSESS] = statsDic[(settingsTable[idx][IDX_RSVR_NO], settingsTable[idx][IDX_RPORT])][I_CURRSESS]
+                    ### https://www.geeksforgeeks.org/copy-python-deep-copy-shallow-copy/
+                    settingsTable.append(copy.deepcopy(settingsTable[-1]))   ## deepcopy() 를 이용하지 않으면 call by reference 로 복사하여 새로운 것을 편집하면 예전 것도 변경됨.
+                #### To see if there's anonmally
+                '''
+                difference = len(settingsTable) - idx
+                if difference != 1:
+                    print("***** RIP   ** Difference: ", difference, ", length of settingsTable: ", len(settingsTable), ", idx = ", idx)
+                    print("      settingsTable[idx]:          ", settingsTable[idx])
+                    print("      settingsTable[Last element]: ", settingsTable[-1])
+                '''
+                #################################
+                settingsTable[-1][IDX_RSVR_NO] = (re.search(r'[\d]+(?=\:\s[\d])', line)).group(0)
+                settingsTable[-1][IDX_RIP] = (re.search(r'(?<=[\d]\:\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0) ## "re.error: look-behind requires fixed-width patter"로 인해 ":" 앞에 오는 숫자는 하나만 보는 걸로 수정함.
+                #print("settingsTable: ", settingsTable[idx] )
+                settingsTable[-1][IDX_CURRSTAT] = statsDic[(settingsTable[-1][IDX_RSVR_NO], settingsTable[-1][IDX_RPORT])][I_CURRSTAT]
+                settingsTable[-1][IDX_CURRSESS] = statsDic[(settingsTable[-1][IDX_RSVR_NO], settingsTable[-1][IDX_RPORT])][I_CURRSESS]
                 idx += 1
                 prevFlag = FLAG_RIP
 
