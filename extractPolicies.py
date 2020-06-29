@@ -9,6 +9,8 @@ B format: Juniper FW shell 에서 'show security policies detail' 명령어의 o
 방법: 해당 파이선 프로그램과 A, B 파일을 모두 한 폴더 안에 넣어두고, 그 폴더에서 다음 명령으로 실행시킨다.
      python extractPolicies.v.1.0.5.py [ip list file A] [show security policies detail output file B]
 A 파일을 'ips'라는 list로 저장해두고, B 파일을 한 라인씩 읽으면서 ips를 검색해서 있으면 결과 파일에 저장한다.
+
+https://stackoverflow.com/questions/1347791/unicode-error-unicodeescape-codec-cant-decode-bytes-cannot-open-text-file
 '''
 #!/usr/bin/env python3
 import mmap
@@ -23,9 +25,9 @@ OUTPUT_FILE='policies-output-' + str(date.today()) + '.txt'  # 결과 파일 이
 if __name__ == '__main__':
     # 이 프로그램을 실행할 때, 받아들일 arguments 2개
     parser = argparse.ArgumentParser()
+    parser.add_argument('policy_file', type=argparse.FileType('r', encoding='UTF-8'))
     parser.add_argument('indiv_ip_file', type=argparse.FileType('r'))
-    parser.add_argument('policy_file', type=argparse.FileType('r'))
-
+    
     args = parser.parse_args()
 
     ips = [ip.rstrip('\n') for ip in args.indiv_ip_file]  # ip가 있는 파일에서 ip 를 list로 추출
