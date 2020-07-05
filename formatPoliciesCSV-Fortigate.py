@@ -62,6 +62,9 @@ from datetime import datetime
 
 
 ### global variables
+## File names
+OUTPUT_FOR='fortigate_'
+###############
 FOLLOWING_IS_POLICY='config firewall policy'
 THIS_IS_POL='edit'
 THIS_IS_POL_NAME='set name'
@@ -70,12 +73,25 @@ THIS_IS_END_OF_POL='next'
 THIS_IS_ACTION='set action'
 THIS_IS_FROM='set srcintf'
 THIS_IS_TO='set dstintf'
-FOLLOWING_IS_SRC='set srcaddr'
-FOLLOWING_IS_DST='set dstaddr'
+THIS_IS_SRC='set srcaddr'
+THIS_IS_DST='set dstaddr'
 #THIS_IS_PROTO='set service'
 THIS_IS_DPORT='set service'
 SRC_FLAG='src'
 DST_FLAG='dst'
+###
+# No,From,To,Policy ID,Policy Name,Source,Destination,Service/Port
+IDX_NO = 0
+IDX_FROM = 1
+IDX_TO = 2
+IDX_POLICY_ID = 3
+IDX_POLICY_NAME = 4
+LAST_STR_IDX = IDX_POLICY_NAME
+## The followings are lists:
+IDX_SOURCE = 5
+IDX_DESTINATION = 6
+IDX_SERVICE = 7
+LAST_IDX = IDX_SERVICE
 
 now = datetime.now()
 OUTPUT_FILE='output-' + OUTPUT_FOR + now.strftime("%Y%m%d") + '-' + now.strftime("%H%M") + '.csv'  # 결과 파일 이름
@@ -83,8 +99,8 @@ OUTPUT_FILE='output-' + OUTPUT_FOR + now.strftime("%Y%m%d") + '-' + now.strftime
 if __name__ == '__main__':
     # 이 프로그램을 실행할 때, 받아들일 arguments 2개
     parser = argparse.ArgumentParser()
-    parser.add_argument('pair_file', type=argparse.FileType('r'), help="a file with a list of policy name and ip pairs")
-    parser.add_argument('policy_file', type=argparse.FileType('r'), help="output for 'show firewall policy'")
+    parser.add_argument('pair_file', type=argparse.FileType('r', encoding='UTF-8'), help="a file with a list of policy name and ip pairs")
+    parser.add_argument('policy_file', type=argparse.FileType('r', encoding='UTF-8'), help="output for 'show firewall policy'")
 
     args = parser.parse_args()
 
@@ -95,7 +111,7 @@ if __name__ == '__main__':
             # https://stackoverflow.com/questions/15340582/python-extract-pattern-matches
             thePolicy = (re.search(r'[_\-\w]+,',line)).group(0).rstrip(',') # 정책 이름 추출 (delimiter= before ',')
             theIP     = (re.search(r'(?<=,\s)[\d]+\.[\d]+\.[\d]+\.[\d]+',line)).group(0) # IP 추출 (delimiter= after ',') ## https://docs.python.org/3/library/re.html
-            print(thePolicy+": "+theIP+";")
+            #print(thePolicy+": "+theIP+";")
             if thePolicy == prevPol:
                 policyIPsPair[thePolicy].append(theIP)
             else:
@@ -106,65 +122,56 @@ if __name__ == '__main__':
         open(OUTPUT_FILE, 'w') as out_file:
         skip = False
         k = 1
-        out_file.write("No,From,To,Policy Name,Source,Destination,Service/Port")
-
+        out_file.write("No,From,To,Policy ID,Policy Name,Source,Destination,Service/Port\n")
+        ############################################
+        ## THIS_IS_END_OF_POL 있는 라인에서 파일에 쓸 것임. 
+        ## Because there are 2 ways to name the rule, and while one is at the start of the policy, the other one is at the end of the policy.
         for line in p_file: ## enumeration is for src/dst ips to be accumulated and written in the output file
-            if THIS_IS_POL in line: #if the line is a start of a policy
-                policy = (re.search(r'(?<=:\s)[_\-\w]+,',line)).group(0).rstrip(',') # Policy: 뒤에 나올 수 있는 정책 이름 추출 (delimiter= ':' or ' ' and ',')
+            #if THIS_IS_POL in line: #if the line is a start of a policy
+            if re.search(rf'{THIS_IS_POL}\s[\d]+',line): #if the line is a start of a policy
+            #if re.search(r'edit\s[\d]+',line): #if the line is a start of a policy
+                policy = (re.search(r'[\d]+',line)).group(0) # 정책 ID 추출 (delimiter= ' ' and '\n')
                 if policy in policyIPsPair:
-                    out_file.write("\r\n%d," % (k))
+                    policyRecord = [None for i in range(LAST_IDX+1)]
+                    print("K = ", k)
+                    policyRecord[IDX_NO] = k
+                    policyRecord[IDX_POLICY_ID] = (re.search(r'[\d]+',line)).group(0)
                     k += 1
-                    nPorts = 0
                     skip = False
                 else:
                     skip = True
             elif not skip:
                 if THIS_IS_FROM in line:
-                    out_file.write("%s," % ((re.search(r'(?<=:\s)[_\-\w]+,',line)).group(0).rstrip(',')))
-                    regexTemp = re.escape(THIS_IS_TO) + r'\s[_\-\w]+'
-                    out_file.write("%s,%s," % ((re.search(regexTemp,line)).group(0).replace(THIS_IS_TO + ' ', ''), policy))
-                elif FOLLOWING_IS_SRC in line:
-                    out_file.write("\"")
-                    ipList = []
-                elif FOLLOWING_IS_DST in line:
-                    ############## To write SRC IP list into an output file #################
-                    ### WARNING: 삭제 예정인 ip가 src 와 dst에서 각각 있다면 아래 검사는 실패한다.
-                    ###          따라서 요청된 ip가 여러 구간(VDI, trust, untrust 등등)에 걸쳐 있지 않도록 주의한다.
-                    #out_file.write("\"") # 위에서 이미 처리
-                    if set(policyIPsPair[policy]).issubset(set(ipList)):
-                        for ip in policyIPsPair[policy]:
-                            out_file.write("%s" % ip)
-                    else:
-                        for ip in ipList:
-                            out_file.write("%s " % ip)
-                    ####################################
-                    out_file.write("\",")
-                    ipList = []
-                elif re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+/[\d]+', line):   #### This only searches for IPv4 addresses
-                    ### https://stackoverflow.com/questions/1038824/how-do-i-remove-a-substring-from-the-end-of-a-string-in-python
-                    ipTemp = re.sub(r'/32$', '', re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+/[\d]+', line).group(0))
-                    ipList.append(ipTemp)
-                elif THIS_IS_PROTO in line:  ## This line can be repeated within one policy.
-                    if not nPorts: ## 파일에 한번만 쓰도록 하기 위하여.
-                        ############## To write DST IP list into an output file #################
-                        ### WARNING: 삭제 예정인 ip가 src 와 dst에서 각각 있다면 아래 검사는 실패한다.
-                        ###          따라서 요청된 ip가 여러 구간(VDI, trust, untrust 등등)에 걸쳐 있지 않도록 주의한다.
-                        out_file.write("\"")
-                        if set(policyIPsPair[policy]).issubset(set(ipList)):
-                            for ip in policyIPsPair[policy]:
-                                out_file.write("%s" % ip)
-                        else:
-                            for ip in ipList:
-                                out_file.write("%s " % ip)
-                        ####################################
-                        out_file.write("\",")
-                    out_file.write("%s " % ((re.search(r'(?<=:\s)[_\-\w]+,',line)).group(0).rstrip(',')))
+                    #policyRecord[IDX_FROM] = (re.search(r'(?<=:")[_\-\*\w]+"',line)).group(0).rstrip('"')
+                    policyRecord[IDX_FROM] = (re.search(r'\".*\"',line)).group(0).strip('"')
+                elif THIS_IS_TO in line:
+                    #policyRecord[IDX_TO] = (re.search(r'(?<=:")[_\-\*\w]+"',line)).group(0).rstrip('"')
+                    policyRecord[IDX_TO] = (re.search(r'\".*\"',line)).group(0).strip('"')
+                elif THIS_IS_POL_NAME in line:
+                    #policyRecord[IDX_POLICY_NAME] = (re.search(r'(?<=:")[_\-\w]+"',line)).group(0).rstrip('"')
+                    policyRecord[IDX_POLICY_NAME] = (re.search(r'\".*\"',line)).group(0).strip('"')
+                elif THIS_IS_POL_NAME_L in line:
+                    #policyRecord[IDX_POLICY_NAME] = (re.search(r'(?<=:")[_\-\w]+"',line)).group(0).rstrip('"')
+                    policyRecord[IDX_POLICY_NAME] = (re.search(r'\".*\"',line)).group(0).strip('"')
+                elif THIS_IS_SRC in line:
+                    policyRecord[IDX_SOURCE] = (re.search(r'\".*\"',line)).group(0)
+                    print("src: ", policyRecord[IDX_SOURCE])
+                elif THIS_IS_DST in line:
+                    policyRecord[IDX_DESTINATION] = (re.search(r'\".*\"',line)).group(0)
                 elif THIS_IS_DPORT in line:
-                    start = int((re.search(r'(?<=\[)[\d]+\-',line).group(0)).rstrip('-'))
-                    end   = int((re.search(r'(?<=\-)[\d]+\]',line).group(0)).rstrip(']'))
-                    nThisSrv = end - start
-                    if not nThisSrv:
-                        out_file.write("%d " % (start))
-                    else:
-                        out_file.write("%d~%d " % (start, end))
-                    nPorts += 1 + nThisSrv
+                    policyRecord[IDX_SERVICE] = (re.search(r'\".*\"',line)).group(0)
+                elif THIS_IS_END_OF_POL in line:
+                    #for i in range(LAST_STR_IDX+1):
+                    for i in range(LAST_IDX+1):
+                        out_file.write("%s," % policyRecord[i])
+                    '''
+                    for i in range(LAST_STR_IDX, LAST_IDX+1):
+                        out_file.write('"')
+                        #for element in policyRecord[i + LAST_STR_IDX + 1]:  ## for loop for each element in a list
+                        for element in policyRecord[i]:  ## for loop for each element in a list
+                            #print ("element: ", element)
+                            out_file.write("%s " % element)
+                        out_file.write('",')
+                    '''
+                    out_file.write("\n")
+                
