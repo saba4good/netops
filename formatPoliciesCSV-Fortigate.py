@@ -117,7 +117,7 @@ if __name__ == '__main__':
             else:
                 policyIPsPair[thePolicy] = [theIP]
                 prevPol = thePolicy
-
+    print("Policies: ", policyIPsPair)
     with args.policy_file as p_file, \
         open(OUTPUT_FILE, 'w') as out_file:
         skip = False
@@ -128,8 +128,8 @@ if __name__ == '__main__':
         ## Because there are 2 ways to name the rule, and while one is at the start of the policy, the other one is at the end of the policy.
         for line in p_file: ## enumeration is for src/dst ips to be accumulated and written in the output file
             #if THIS_IS_POL in line: #if the line is a start of a policy
+            # https://stackoverflow.com/questions/6930982/how-to-use-a-variable-inside-a-regular-expression
             if re.search(rf'{THIS_IS_POL}\s[\d]+',line): #if the line is a start of a policy
-            #if re.search(r'edit\s[\d]+',line): #if the line is a start of a policy
                 policy = (re.search(r'[\d]+',line)).group(0) # 정책 ID 추출 (delimiter= ' ' and '\n')
                 if policy in policyIPsPair:
                     policyRecord = [None for i in range(LAST_IDX+1)]
@@ -154,8 +154,16 @@ if __name__ == '__main__':
                     #policyRecord[IDX_POLICY_NAME] = (re.search(r'(?<=:")[_\-\w]+"',line)).group(0).rstrip('"')
                     policyRecord[IDX_POLICY_NAME] = (re.search(r'\".*\"',line)).group(0).strip('"')
                 elif THIS_IS_SRC in line:
-                    policyRecord[IDX_SOURCE] = (re.search(r'\".*\"',line)).group(0)
-                    print("src: ", policyRecord[IDX_SOURCE])
+                    #policyRecord[IDX_SOURCE] = (re.search(r'\".*\"',line)).group(0)
+                    policyRecord[IDX_SOURCE] = (re.search(r'\".*\"',line)).group(0).replace('"', '').split()
+                    SRC_CHG_FLAG = False
+                    sources = []
+                    for src in policyRecord[IDX_SOURCE]:
+                        if src in policyIPsPair[policy]:
+                            SRC_CHG_FLAG = True
+                            sources = sources.append(src)
+                    if SRC_CHG_FLAG:
+                        policyRecord[IDX_SOURCE] = sources
                 elif THIS_IS_DST in line:
                     policyRecord[IDX_DESTINATION] = (re.search(r'\".*\"',line)).group(0)
                 elif THIS_IS_DPORT in line:
@@ -174,4 +182,5 @@ if __name__ == '__main__':
                         out_file.write('",')
                     '''
                     out_file.write("\n")
+                
                 
