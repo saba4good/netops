@@ -157,10 +157,8 @@ if __name__ == '__main__':
                         if src in policyIPsPair[policy]:
                             src_chg_flag = True
                             sources.append(src)
-                            #print("Rule: ", policy, ". Source: ", src)
                     if src_chg_flag:
                         policyRecord[IDX_SOURCE] = sources
-                    #print("1st source: ", policyRecord[IDX_SOURCE][0])
                 elif THIS_IS_DST in line:
                     policyRecord[IDX_DESTINATION] = (re.search(r'\".*\"',line)).group(0).replace('"', '').split()
                     dst_chg_flag = False
@@ -171,26 +169,20 @@ if __name__ == '__main__':
                         if dst in policyIPsPair[policy]:
                             dst_chg_flag = True
                             destinations.append(dst)
-                            #print("Rule: ", policy, ". dst: ", dst)
                     if dst_chg_flag:
                         if src_chg_flag:
                             print("********* WARNING! **** Both the sources and the destinations will be changed!")
                             print("********* WARNING! **** Rule: ", policy)
                         policyRecord[IDX_DESTINATION] = destinations
-                    #print("dsts: ", policyRecord[IDX_DESTINATION])
                 elif THIS_IS_DPORT in line:
                     policyRecord[IDX_SERVICE] = (re.search(r'\".*\"',line)).group(0)
                 elif THIS_IS_END_OF_POL in line:
-                    for i in range(LAST_IDX+1):
+                    for i in range(LAST_STR_IDX+1):
                         out_file.write("%s," % policyRecord[i])
-                    '''
-                    for i in range(LAST_STR_IDX, LAST_IDX+1):
+                    for i in range(LAST_STR_IDX+1, LAST_IDX+1):
                         out_file.write('"')
-                        #for element in policyRecord[i + LAST_STR_IDX + 1]:  ## for loop for each element in a list
-                        for element in policyRecord[i]:  ## for loop for each element in a list
-                            #print ("element: ", element)
+                        for element in policyRecord[i]:  ## for loop for each IP or service in source, destination, service field
                             out_file.write("%s " % element)
                         out_file.write('",')
-                    '''
                     out_file.write("\n")
  
