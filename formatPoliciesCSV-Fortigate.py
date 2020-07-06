@@ -175,7 +175,7 @@ if __name__ == '__main__':
                             print("********* WARNING! **** Rule: ", policy)
                         policyRecord[IDX_DESTINATION] = destinations
                 elif THIS_IS_DPORT in line:
-                    policyRecord[IDX_SERVICE] = (re.search(r'\".*\"',line)).group(0)
+                    policyRecord[IDX_SERVICE] = (re.search(r'\".*\"',line)).group(0).replace('"', '').split()
                 elif THIS_IS_END_OF_POL in line:
                     for i in range(LAST_STR_IDX+1):
                         out_file.write("%s," % policyRecord[i])
