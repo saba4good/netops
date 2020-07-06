@@ -99,6 +99,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('pair_file', type=argparse.FileType('r', encoding='UTF-8'), help="a file with a list of policy name and ip pairs")
     parser.add_argument('policy_file', type=argparse.FileType('r', encoding='UTF-8'), help="output for 'show firewall policy'")
+    # https://stackoverflow.com/questions/28479543/run-python-script-with-some-of-the-argument-that-are-optional
     parser.add_argument('-a', '--action', type=str, help="what needs to be done with the IPs'", default='del')
     
 
