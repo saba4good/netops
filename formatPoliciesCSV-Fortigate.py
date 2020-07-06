@@ -75,7 +75,6 @@ THIS_IS_FROM='set srcintf'
 THIS_IS_TO='set dstintf'
 THIS_IS_SRC='set srcaddr'
 THIS_IS_DST='set dstaddr'
-#THIS_IS_PROTO='set service'
 THIS_IS_DPORT='set service'
 
 ###
@@ -100,9 +99,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('pair_file', type=argparse.FileType('r', encoding='UTF-8'), help="a file with a list of policy name and ip pairs")
     parser.add_argument('policy_file', type=argparse.FileType('r', encoding='UTF-8'), help="output for 'show firewall policy'")
+    parser.add_argument('-a', '--action', type=str, help="what needs to be done with the IPs'", default='del')
+    
 
     args = parser.parse_args()
 
+    if args.action == 'del':
+        action_comment = '(삭제)'
     policyIPsPair = dict()
     prevPol = ''
     with args.pair_file as pairs:
@@ -110,13 +113,11 @@ if __name__ == '__main__':
             # https://stackoverflow.com/questions/15340582/python-extract-pattern-matches
             thePolicy = (re.search(r'[_\-\w]+,',line)).group(0).rstrip(',') # 정책 이름 추출 (delimiter= before ',')
             theIP     = (re.search(r'(?<=,\s)[\d]+\.[\d]+\.[\d]+\.[\d]+',line)).group(0) # IP 추출 (delimiter= after ',') ## https://docs.python.org/3/library/re.html
-            #print(thePolicy+": "+theIP+";")
             if thePolicy == prevPol:
                 policyIPsPair[thePolicy].append(theIP)
             else:
                 policyIPsPair[thePolicy] = [theIP]
                 prevPol = thePolicy
-    print("Policies: ", policyIPsPair)
     with args.policy_file as p_file, \
         open(OUTPUT_FILE, 'w') as out_file:
         skip = False
@@ -158,6 +159,7 @@ if __name__ == '__main__':
                             src_chg_flag = True
                             sources.append(src)
                     if src_chg_flag:
+                        sources.append(action_comment)
                         policyRecord[IDX_SOURCE] = sources
                 elif THIS_IS_DST in line:
                     policyRecord[IDX_DESTINATION] = (re.search(r'\".*\"',line)).group(0).replace('"', '').split()
@@ -170,6 +172,7 @@ if __name__ == '__main__':
                             dst_chg_flag = True
                             destinations.append(dst)
                     if dst_chg_flag:
+                        destinations.append(action_comment)
                         if src_chg_flag:
                             print("********* WARNING! **** Both the sources and the destinations will be changed!")
                             print("********* WARNING! **** Rule: ", policy)
