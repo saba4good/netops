@@ -153,13 +153,11 @@ if __name__ == '__main__':
                     sources = []
                     for src in policyRecord[IDX_SOURCE]:
                         if re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+(\_[\d]+)*',src):
-                            src = (re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+(\_[\d]+)*',src)).group(0)
-                        else:
-                            print("Why? Here's the source: ", src)
+                            src = (re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+(\_[\d]+)*',src)).group(0).replace('_', '/')
                         if src in policyIPsPair[policy]:
                             src_chg_flag = True
                             sources.append(src)
-                            print("Yay! source: ", src)
+                            #print("Rule: ", policy, ". Source: ", src)
                     if src_chg_flag:
                         policyRecord[IDX_SOURCE] = sources
                     #print("1st source: ", policyRecord[IDX_SOURCE][0])
@@ -168,11 +166,16 @@ if __name__ == '__main__':
                     dst_chg_flag = False
                     destinations = []
                     for dst in policyRecord[IDX_DESTINATION]:
+                        if re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+(\_[\d]+)*',dst):
+                            dst = (re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+(\_[\d]+)*',dst)).group(0).replace('_', '/')
                         if dst in policyIPsPair[policy]:
                             dst_chg_flag = True
                             destinations.append(dst)
-                            print("Yay! dst: ", dst)
+                            #print("Rule: ", policy, ". dst: ", dst)
                     if dst_chg_flag:
+                        if src_chg_flag:
+                            print("********* WARNING! **** Both the sources and the destinations will be changed!")
+                            print("********* WARNING! **** Rule: ", policy)
                         policyRecord[IDX_DESTINATION] = destinations
                     #print("dsts: ", policyRecord[IDX_DESTINATION])
                 elif THIS_IS_DPORT in line:
