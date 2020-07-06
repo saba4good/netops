@@ -77,8 +77,7 @@ THIS_IS_SRC='set srcaddr'
 THIS_IS_DST='set dstaddr'
 #THIS_IS_PROTO='set service'
 THIS_IS_DPORT='set service'
-SRC_FLAG='src'
-DST_FLAG='dst'
+
 ###
 # No,From,To,Policy ID,Policy Name,Source,Destination,Service/Port
 IDX_NO = 0
@@ -133,7 +132,6 @@ if __name__ == '__main__':
                 policy = (re.search(r'[\d]+',line)).group(0) # 정책 ID 추출 (delimiter= ' ' and '\n')
                 if policy in policyIPsPair:
                     policyRecord = [None for i in range(LAST_IDX+1)]
-                    print("K = ", k)
                     policyRecord[IDX_NO] = k
                     policyRecord[IDX_POLICY_ID] = (re.search(r'[\d]+',line)).group(0)
                     k += 1
@@ -142,34 +140,40 @@ if __name__ == '__main__':
                     skip = True
             elif not skip:
                 if THIS_IS_FROM in line:
-                    #policyRecord[IDX_FROM] = (re.search(r'(?<=:")[_\-\*\w]+"',line)).group(0).rstrip('"')
                     policyRecord[IDX_FROM] = (re.search(r'\".*\"',line)).group(0).strip('"')
                 elif THIS_IS_TO in line:
-                    #policyRecord[IDX_TO] = (re.search(r'(?<=:")[_\-\*\w]+"',line)).group(0).rstrip('"')
                     policyRecord[IDX_TO] = (re.search(r'\".*\"',line)).group(0).strip('"')
                 elif THIS_IS_POL_NAME in line:
-                    #policyRecord[IDX_POLICY_NAME] = (re.search(r'(?<=:")[_\-\w]+"',line)).group(0).rstrip('"')
                     policyRecord[IDX_POLICY_NAME] = (re.search(r'\".*\"',line)).group(0).strip('"')
                 elif THIS_IS_POL_NAME_L in line:
-                    #policyRecord[IDX_POLICY_NAME] = (re.search(r'(?<=:")[_\-\w]+"',line)).group(0).rstrip('"')
                     policyRecord[IDX_POLICY_NAME] = (re.search(r'\".*\"',line)).group(0).strip('"')
                 elif THIS_IS_SRC in line:
-                    #policyRecord[IDX_SOURCE] = (re.search(r'\".*\"',line)).group(0)
                     policyRecord[IDX_SOURCE] = (re.search(r'\".*\"',line)).group(0).replace('"', '').split()
-                    SRC_CHG_FLAG = False
+                    src_chg_flag = False
                     sources = []
                     for src in policyRecord[IDX_SOURCE]:
                         if src in policyIPsPair[policy]:
-                            SRC_CHG_FLAG = True
-                            sources = sources.append(src)
-                    if SRC_CHG_FLAG:
+                            src_chg_flag = True
+                            sources.append(src)
+                            print("Yay! source: ", src)
+                    if src_chg_flag:
                         policyRecord[IDX_SOURCE] = sources
+                    #print("1st source: ", policyRecord[IDX_SOURCE][0])
                 elif THIS_IS_DST in line:
-                    policyRecord[IDX_DESTINATION] = (re.search(r'\".*\"',line)).group(0)
+                    policyRecord[IDX_DESTINATION] = (re.search(r'\".*\"',line)).group(0).replace('"', '').split()
+                    dst_chg_flag = False
+                    destinations = []
+                    for dst in policyRecord[IDX_DESTINATION]:
+                        if dst in policyIPsPair[policy]:
+                            dst_chg_flag = True
+                            destinations.append(dst)
+                            print("Yay! dst: ", dst)
+                    if dst_chg_flag:
+                        policyRecord[IDX_DESTINATION] = destinations
+                    #print("dsts: ", policyRecord[IDX_DESTINATION])
                 elif THIS_IS_DPORT in line:
                     policyRecord[IDX_SERVICE] = (re.search(r'\".*\"',line)).group(0)
                 elif THIS_IS_END_OF_POL in line:
-                    #for i in range(LAST_STR_IDX+1):
                     for i in range(LAST_IDX+1):
                         out_file.write("%s," % policyRecord[i])
                     '''
@@ -182,5 +186,4 @@ if __name__ == '__main__':
                         out_file.write('",')
                     '''
                     out_file.write("\n")
-                
-                
+ 
