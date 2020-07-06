@@ -152,6 +152,10 @@ if __name__ == '__main__':
                     src_chg_flag = False
                     sources = []
                     for src in policyRecord[IDX_SOURCE]:
+                        if re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+(\_[\d]+)*',src):
+                            src = (re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+(\_[\d]+)*',src)).group(0)
+                        else:
+                            print("Why? Here's the source: ", src)
                         if src in policyIPsPair[policy]:
                             src_chg_flag = True
                             sources.append(src)
