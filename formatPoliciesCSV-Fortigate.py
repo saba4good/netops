@@ -53,6 +53,20 @@ Parts of B file example:
         set logtraffic all
         set comments "pol160814-0110"
     next
+end
+
+Parts of C file example:
+FW-A (FWNAME) $ show firewall addrgrp
+config firewall addrgrp
+    edit "grp-what"
+        set uuid 7dbf0bke-1686-51e6-9389-56e8b189fa99
+        set member "h2.27.133.17" "h2.27.133.16" "h2.27.133.27"
+    next
+    edit "grp-example"
+        set uuid 7dbf1do0-1686-51e6-a64b-258p4cf58ffz
+        set member "h10.24.29.43" "h10.24.29.48" "h10.1.30.8" "h10.24.26.37"
+    next
+end
 '''
 #!/usr/bin/env python3
 import mmap
@@ -66,10 +80,10 @@ from datetime import datetime
 OUTPUT_FOR='fortigate_'
 ###############
 FOLLOWING_IS_POLICY='config firewall policy'
-THIS_IS_POL='edit'
+THIS_IS_BEG_OF_BLOCK='edit'
 THIS_IS_POL_NAME='set name'
 THIS_IS_POL_NAME_L='set comments'
-THIS_IS_END_OF_POL='next'
+THIS_IS_END_OF_BLOCK='next'
 THIS_IS_ACTION='set action'
 THIS_IS_FROM='set srcintf'
 THIS_IS_TO='set dstintf'
@@ -125,12 +139,12 @@ if __name__ == '__main__':
         k = 1
         out_file.write("No,From,To,Policy ID,Policy Name,Source,Destination,Service/Port\n")
         ############################################
-        ## THIS_IS_END_OF_POL 있는 라인에서 파일에 쓸 것임. 
+        ## THIS_IS_END_OF_BLOCK 있는 라인에서 파일에 쓸 것임. 
         ## Because there are 2 ways to name the rule, and while one is at the start of the policy, the other one is at the end of the policy.
         for line in p_file: ## enumeration is for src/dst ips to be accumulated and written in the output file
-            #if THIS_IS_POL in line: #if the line is a start of a policy
+            #if THIS_IS_BEG_OF_BLOCK in line: #if the line is a start of a policy
             # https://stackoverflow.com/questions/6930982/how-to-use-a-variable-inside-a-regular-expression
-            if re.search(rf'{THIS_IS_POL}\s[\d]+',line): #if the line is a start of a policy
+            if re.search(rf'{THIS_IS_BEG_OF_BLOCK}\s[\d]+',line): #if the line is a start of a policy
                 policy = (re.search(r'[\d]+',line)).group(0) # 정책 ID 추출 (delimiter= ' ' and '\n')
                 if policy in policyIPsPair:
                     policyRecord = [None for i in range(LAST_IDX+1)]
@@ -180,7 +194,7 @@ if __name__ == '__main__':
                         policyRecord[IDX_DESTINATION] = destinations
                 elif THIS_IS_DPORT in line:
                     policyRecord[IDX_SERVICE] = (re.search(r'\".*\"',line)).group(0).replace('"', '').split()
-                elif THIS_IS_END_OF_POL in line:
+                elif THIS_IS_END_OF_BLOCK in line:
                     for i in range(LAST_STR_IDX+1):
                         out_file.write("%s," % policyRecord[i])
                     for i in range(LAST_STR_IDX+1, LAST_IDX+1):
