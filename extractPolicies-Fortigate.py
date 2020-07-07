@@ -118,8 +118,10 @@ if __name__ == '__main__':
                 if re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+-[\d]+', line):
                     ip_range = (re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+-[\d]+', line)).group(0)
                     network  = (re.search(r'[\d]+\.[\d]+\.[\d]+', ip_range)).group(0)
-                    host_start = (re.search(r'[\d]+-', ip_range)).group(0).replace('-','')
-                    host_end  = (re.search(r'-[\d]+', ip_range)).group(0).replace('-','')
+                    host_start = int((re.search(r'[\d]+-', ip_range)).group(0).replace('-',''))
+                    host_end  = int((re.search(r'-[\d]+', ip_range)).group(0).replace('-',''))
+                    for host in range(host_start, host_end+1):
+                        
                 for ip in ips:
                     if ip in line:
                         if policy_id:
