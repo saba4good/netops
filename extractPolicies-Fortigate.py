@@ -72,8 +72,8 @@ from datetime import datetime
 THIS_IS_BEG_OF_BLOCK='edit'  # Policy/address group paragraph가 시작하는 것을 알 수 있는 구문
 ### https://stackoverflow.com/questions/32490629/getting-todays-date-in-yyyy-mm-dd-in-python
 now = datetime.now()
-POLICY_FILE_REV='policies-revised-' + now.strftime("%Y%m%d") + '-' + now.strftime("%H%M") + '.txt'  # 결과 파일 이름
-OUTPUT_FILE='output-policy-ip-' + now.strftime("%Y%m%d") + '-' + now.strftime("%H%M") + '.csv'  # 결과 파일 이름
+POLICY_FILE_REV='policies-revised-' + now.strftime("%Y%m%d") + '-' + now.strftime("%H%M") + '.txt'  # IP range 를 개별 IP로 변환한 policies 파일 이름
+OUTPUT_FILE='output-policy-ip-' + now.strftime("%Y%m%d") + '-' + now.strftime("%H%M") + '.txt'  # 결과 파일 이름
 
 if __name__ == '__main__':
     # 이 프로그램을 실행할 때, 받아들일 arguments
@@ -84,9 +84,10 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
     
-    ### range로 묶여있는 ip를 개별 IP로 풀어서 policy file 다시 쓰기
+    ## range로 묶여있는 ip를 개별 IP로 풀어서 policy file 다시 쓰기
+    ## reference: https://stackoverflow.com/questions/49964998/getting-attributeerror-enter-when-using-csv-readeropen
     with args.policy_file as p_file, \
-         open(POLICY_FILE_REV, 'w') as p_rev_file:
+         open(POLICY_FILE_REV, 'w', encoding='UTF-8') as p_rev_file:
         for line in p_file:
             line_chg = line
             if re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+-[\d]+', line):
@@ -96,13 +97,13 @@ if __name__ == '__main__':
                 host_end  = int((re.search(r'-[\d]+', ip_range)).group(0).replace('-',''))
                 indiv_ips_str = ''
                 for host in range(host_start, host_end+1):
-                    indiv_ips_str =+ ' "' + network + str(host) + '"'
+                    indiv_ips_str += ' "' + network + str(host) + '"'
                 line_chg = line.replace(ip_range, indiv_ips_str)
             p_rev_file.write(line_chg)
     
 
     ips = [ip.rstrip('\n') for ip in args.indiv_ip_file]  # ip가 있는 파일에서 ip 를 list로 추출
-    with POLICY_FILE_REV as p_file, \
+    with open(POLICY_FILE_REV, 'r', encoding='UTF-8') as p_file, \
          args.addrgrp_file as g_file, \
          open(OUTPUT_FILE, 'w') as out_file:
         for line in g_file:
@@ -110,7 +111,7 @@ if __name__ == '__main__':
                 grp_name = re.search(r'\".*\"',line)  # edit 뒤에 나올 수 있는 group 이름 추출 (delimiter= '"')
                 if grp_name:
                     grp_name = re.search(r'\".*\"',line).group(0).replace('"', '')
-                    print("Group: %s\n" % grp_name)
+                    #print("Group: %s\n" % grp_name)
                 else:
                     grp_name = None
             elif re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+', line):  ## IPv4 정보가 있는 line인지 확인한다
