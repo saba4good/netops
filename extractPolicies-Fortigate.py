@@ -91,7 +91,7 @@ if __name__ == '__main__':
             if THIS_IS_BEG_OF_BLOCK in line: #if the line is a start of a address group
                 grp_name = re.search(r'\".*\"',line)  # edit 뒤에 나올 수 있는 group 이름 추출 (delimiter= '"')
                 if grp_name:
-                    grp_name = re.search(r'\".*\"',line).group(0).replace('"', '')  # edit 뒤에 나올 수 있는 정책 이름 추출 (delimiter= ' ')
+                    grp_name = re.search(r'\".*\"',line).group(0).replace('"', '')
                     print("Group: %s\n" % grp_name)
                 else:
                     grp_name = None
@@ -115,11 +115,15 @@ if __name__ == '__main__':
                 else:
                     policy_id = None
             elif re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+', line):  ## IPv4 정보가 있는 line인지 확인한다
+                if re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+-[\d]+', line):
+                    ip_range = (re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+-[\d]+', line)).group(0)
+                    network  = (re.search(r'[\d]+\.[\d]+\.[\d]+', ip_range)).group(0)
+                    host_start = (re.search(r'[\d]+-', ip_range)).group(0).replace('-','')
+                    host_end  = (re.search(r'-[\d]+', ip_range)).group(0).replace('-','')
                 for ip in ips:
                     if ip in line:
                         if policy_id:
                             out_file.write("%s, %s\n" % (policy_id, ip))
                             # https://stackoverflow.com/questions/47078585/python-f-write-is-not-taking-more-arguments
-                            # print(the_policy.group()[1:len(the_policy.group())-1], ' , ', ip)
                         else:
                             print('Error: Policy name not found')
