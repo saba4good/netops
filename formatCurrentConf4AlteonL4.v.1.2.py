@@ -49,18 +49,16 @@ IDX_HP_TYPE=3
 IDX_HP_LOGEXP=4
 HP_LAST_IDX=IDX_HP_LOGEXP
 
-IDX_RP_ID=0
-IDX_RP_IP=1
-IDX_RP_PORTS=2
-IDX_RP_DESC=3
-IDX_RP_HC=4
+IDX_RP_IP=0
+IDX_RP_PORTS=1
+IDX_RP_DESC=2
+IDX_RP_HC=3
 RP_LAST_IDX=IDX_RP_HC
 
-IDX_GP_ID=0
-IDX_GP_SLB=1
-IDX_GP_RIDS=2
-IDX_GP_DESC=3
-IDX_GP_HC=4
+IDX_GP_SLB=0
+IDX_GP_RIDS=1
+IDX_GP_DESC=2
+IDX_GP_HC=3
 GP_LAST_IDX=IDX_GP_DESC
 
 IDX_VIP=0
@@ -138,42 +136,44 @@ if __name__ == '__main__':
             elif re.search(r'/c/slb$', line): ## health check 구문을 빠져나가면
                 break                         ## for loop을 중단하여 cfg_file을 그만 읽는다.
         ######### real  : [real No., rip, rports, description] ##################
-        realProfiles = []
-        groupProfiles = []
+        realProfiles = dict()
+        realNo = ''
+        groupProfiles = dict()
+        groupNo = ''
         for line in cfg_file:
             if re.search(r'/c/slb/real\s[\d]+', line):
-                realProfiles.append(["" for i in range(RP_LAST_IDX+1)])
-                realProfiles[-1][IDX_RP_ID] = (re.search(r'(?<=/c/slb/real\s)[\d]+', line)).group(0)
+                realNo = (re.search(r'(?<=/c/slb/real\s)[\d]+', line)).group(0)
+                realProfiles[realNo]=["" for i in range(RP_LAST_IDX+1)]
             elif re.search(r'rip\s[\d]+\.[\d]+\.[\d]+\.[\d]+', line):
-                realProfiles[-1][IDX_RP_IP] = (re.search(r'(?<=rip\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0)
+                realProfiles[realNo][IDX_RP_IP] = (re.search(r'(?<=rip\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0)
             elif re.search(r'name\s[\d]+', line):
-                realProfiles[-1][IDX_RP_DESC] = (re.search(r'(?<=\").+(?=\")', line)).group(0)
+                realProfiles[realNo][IDX_RP_DESC] = (re.search(r'(?<=\").+(?=\")', line)).group(0)
             elif re.search(r'health\s[\w_]+', line):
-                realProfiles[-1][IDX_RP_HC] = (re.search(r'(?<=health\s)[\w_]+', line)).group(0)
+                realProfiles[realNo][IDX_RP_HC] = (re.search(r'(?<=health\s)[\w_]+', line)).group(0)
             elif re.search(r'addport\s[\d]+', line):
-                if not realProfiles[-1][IDX_RP_PORTS]:      ## real ports에 이미 값이 있으면
-                    realProfiles[-1][IDX_RP_PORTS] += ','   ## 콤마를 붙여줘라
-                realProfiles[-1][IDX_RP_PORTS] = (re.search(r'(?<=\s)[\d]+', line)).group(0)
+                if not realProfiles[realNo][IDX_RP_PORTS]:      ## real ports에 이미 값이 있으면
+                    realProfiles[realNo][IDX_RP_PORTS] += ','   ## 콤마를 붙여줘라
+                realProfiles[realNo][IDX_RP_PORTS] = (re.search(r'(?<=\s)[\d]+', line)).group(0)
             elif re.search(r'/c/slb/group\s[\d]+', line):
-                groupProfiles.append(["" for i in range(GP_LAST_IDX+1)])
-                groupProfiles[-1][IDX_GP_ID] = (re.search(r'(?<=/c/slb/group\s)[\d]+', line)).group(0)
+                groupNo = (re.search(r'(?<=/c/slb/group\s)[\d]+', line)).group(0)
+                groupProfiles[groupNo]=["" for i in range(GP_LAST_IDX+1)]
                 break
         ######### group : [group No., slb method, [real No.s'], description ] ###
         settingsTable = []
         for line in cfg_file:
             if re.search(r'/c/slb/group\s[\d]+', line):
-                groupProfiles.append(["" for i in range(GP_LAST_IDX+1)])
-                groupProfiles[-1][IDX_GP_ID] = (re.search(r'(?<=/c/slb/group\s)[\d]+', line)).group(0)
+                groupNo = (re.search(r'(?<=/c/slb/group\s)[\d]+', line)).group(0)
+                groupProfiles[groupNo]=["" for i in range(GP_LAST_IDX+1)]
             elif re.search(r'add\s[\d]+', line):
-                if groupProfiles[-1][IDX_GP_RIDS]:      ## real rid에 값이 없으면
-                    groupProfiles[-1][IDX_GP_RIDS] = []
-                groupProfiles[-1][IDX_GP_RIDS].append[(re.search(r'(?<=\s)[\d]+', line)).group(0)]
+                if groupProfiles[groupNo][IDX_GP_RIDS]:      ## real rid에 값이 없으면
+                    groupProfiles[groupNo][IDX_GP_RIDS] = []
+                groupProfiles[groupNo][IDX_GP_RIDS].append((re.search(r'(?<=\s)[\d]+', line)).group(0))
             elif re.search(r'metric\s[\w]+', line):
-                groupProfiles[-1][IDX_GP_SLB] = (re.search(r'(?<=\s)[\w]+', line)).group(0)
+                groupProfiles[groupNo][IDX_GP_SLB] = (re.search(r'(?<=\s)[\w]+', line)).group(0)
             elif re.search(r'name\s[\d]+', line):
-                groupProfiles[-1][IDX_GP_DESC] = (re.search(r'(?<=\").+(?=\")', line)).group(0)
+                groupProfiles[groupNo][IDX_GP_DESC] = (re.search(r'(?<=\").+(?=\")', line)).group(0)
             elif re.search(r'health\s[\w]+', line):
-                groupProfiles[-1][IDX_GP_HC] = (re.search(r'(?<=\s)[\w]+', line)).group(0)
+                groupProfiles[groupNo][IDX_GP_HC] = (re.search(r'(?<=\s)[\w]+', line)).group(0)
             elif re.search(r'/c/slb/virt\s[\d]+', line):
                 settingsTable.append(["" for i in range(LAST_IDX+1)])
                 settingsTable[-1][IDX_VIRT] = (re.search(r'(?<=/c/slb/virt\s)[\d]+', line)).group(0)
@@ -189,15 +189,20 @@ if __name__ == '__main__':
                 settingsTable[-1][IDX_VPORT] = (re.search(r'(?<=service\s)[\d]+', line)).group(0)
             elif re.search(r'group\s[\d]+', line):
                 settingsTable[-1][IDX_GROUP_NO] = (re.search(r'(?<=group\s)[\d]+', line)).group(0)
-                # groupProfiles 테이블에서 settingsTable 레코드 채워야 함.
-                # realProfiles 테이블에서도 내용 가져와야 함.
-                settingsTable[-1][IDX_CURRSTAT] = statsDic[(settingsTable[-1][IDX_RSVR_NO], settingsTable[-1][IDX_RPORT])][I_CURRSTAT]
-                settingsTable[-1][IDX_CURRSESS] = statsDic[(settingsTable[-1][IDX_RSVR_NO], settingsTable[-1][IDX_RPORT])][I_CURRSESS]
             elif re.search(r'rport\s[\d]+', line):
-                settingsTable[-1][IDX_RPORT] = (re.search(r'(?<=rport\s)[\d]+', line)).group(0)
-                #if not settingsTable[-1][IDX_RPORT]:   ## rport 0, 즉 multi port인 경우
-                    ################ ID로 테이블에서 레코드를 찾아야 하지만, IP와 같은 레코드 일부를 이용하여 ID를 찾는 경우가 없다면, dictonary가 훨씬 간편할 것이다.
-                    # settingsTable[-1][IDX_RPORT] = groupProfiles[-1][IDX_GP_ID] settingsTable[-1][IDX_GROUP_NO]
+                realSvrs = groupProfiles[settingsTable[-1][IDX_GROUP_NO]][IDX_GP_RIDS]
+                for realNo in realSvrs:
+                    if settingsTable[-1][IDX_RSVR_NO] != '':     ## real server no. 값이 이미 있으면
+                        settingsTable.append(settingsTable[-1])  ## 테이블 마지막 레코드를 복붙해서 새로 row를 만들자.
+                    settingsTable[-1][IDX_RSVR_NO] = realNo
+                    settingsTable[-1][IDX_SLB_METHOD] = groupProfiles[settingsTable[-1][IDX_GROUP_NO]][IDX_GP_SLB]
+                    settingsTable[-1][IDX_DESC] = groupProfiles[settingsTable[-1][IDX_GROUP_NO]][IDX_GP_DESC]
+                    settingsTable[-1][IDX_RIP] = realProfiles[settingsTable[-1][IDX_RSVR_NO]][IDX_RP_IP]
+                    settingsTable[-1][IDX_RPORTS] = (re.search(r'(?<=rport\s)[\d]+', line)).group(0)
+                    if not settingsTable[-1][IDX_RPORT]:   ## rport 0, 즉 multi port인 경우
+                        settingsTable[-1][IDX_RPORT] = realProfiles[settingsTable[-1][IDX_RSVR_NO]][IDX_RP_PORTS]
+                    settingsTable[-1][IDX_CURRSTAT] = statsDic[(settingsTable[-1][IDX_RSVR_NO], settingsTable[-1][IDX_RPORT])][I_CURRSTAT]
+                    settingsTable[-1][IDX_CURRSESS] = statsDic[(settingsTable[-1][IDX_RSVR_NO], settingsTable[-1][IDX_RPORT])][I_CURRSESS]
             elif re.search(r'vip\s[\d]+\.[\d]+\.[\d]+\.[\d]+', line):
                 settingsTable[-1][IDX_VIP] = (re.search(r'(?<=vip\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0)
                 vip = settingsTable[-1][IDX_VIP]
