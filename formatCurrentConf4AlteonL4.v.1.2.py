@@ -152,9 +152,9 @@ if __name__ == '__main__':
             elif re.search(r'health\s[\w_]+', line):
                 realProfiles[realNo][IDX_RP_HC] = (re.search(r'(?<=health\s)[\w_]+', line)).group(0)
             elif re.search(r'addport\s[\d]+', line):
-                if not realProfiles[realNo][IDX_RP_PORTS]:      ## real ports에 이미 값이 있으면
-                    realProfiles[realNo][IDX_RP_PORTS] += ','   ## 콤마를 붙여줘라
-                realProfiles[realNo][IDX_RP_PORTS] = (re.search(r'(?<=\s)[\d]+', line)).group(0)
+                if realProfiles[realNo][IDX_RP_PORTS] != '':      ## real ports에 이미 값이 있으면
+                    realProfiles[realNo][IDX_RP_PORTS] += ';'     ## 세미콜른을 붙여줘라
+                realProfiles[realNo][IDX_RP_PORTS] += (re.search(r'(?<=\s)[\d]+', line)).group(0)
             elif re.search(r'/c/slb/group\s[\d]+', line):
                 groupNo = (re.search(r'(?<=/c/slb/group\s)[\d]+', line)).group(0)
                 groupProfiles[groupNo]=["" for i in range(GP_LAST_IDX+1)]
@@ -180,10 +180,7 @@ if __name__ == '__main__':
                 settingsTable.append(["" for i in range(LAST_IDX+1)])
                 settingsTable[-1][IDX_VIRT] = (re.search(r'(?<=/c/slb/virt\s)[\d]+', line)).group(0)
                 break
-        print ("Group Profiles: \n", groupProfiles)
         ######### virt  : [virt No., vip, vport, group No., description ] #######
-        #idx = 0
-        #prevFlag = INIT_FLAG
         vip = ''
         for line in cfg_file:
             if re.search(r'/c/slb/virt\s[\d]+', line):
@@ -204,10 +201,10 @@ if __name__ == '__main__':
                     settingsTable[-1][IDX_DESC] = groupProfiles[settingsTable[-1][IDX_GROUP_NO]][IDX_GP_DESC]
                     settingsTable[-1][IDX_RIP] = realProfiles[settingsTable[-1][IDX_RSVR_NO]][IDX_RP_IP]
                     settingsTable[-1][IDX_RPORTS] = (re.search(r'(?<=rport\s)[\d]+', line)).group(0)
-                    if not settingsTable[-1][IDX_RPORTS]:   ## rport 0, 즉 multi port인 경우
+                    if settingsTable[-1][IDX_RPORTS] == '0':   ## rport 0, 즉 multi port인 경우
                         settingsTable[-1][IDX_RPORTS] = realProfiles[settingsTable[-1][IDX_RSVR_NO]][IDX_RP_PORTS]
-                    settingsTable[-1][IDX_CURRSTAT] = statsDic[(settingsTable[-1][IDX_RSVR_NO], settingsTable[-1][IDX_RPORT])][I_CURRSTAT]
-                    settingsTable[-1][IDX_CURRSESS] = statsDic[(settingsTable[-1][IDX_RSVR_NO], settingsTable[-1][IDX_RPORT])][I_CURRSESS]
+                    settingsTable[-1][IDX_CURRSTAT] = statsDic[(settingsTable[-1][IDX_RSVR_NO], settingsTable[-1][IDX_RPORTS])][I_CURRSTAT]
+                    settingsTable[-1][IDX_CURRSESS] = statsDic[(settingsTable[-1][IDX_RSVR_NO], settingsTable[-1][IDX_RPORTS])][I_CURRSESS]
             elif re.search(r'vip\s[\d]+\.[\d]+\.[\d]+\.[\d]+', line):
                 settingsTable[-1][IDX_VIP] = (re.search(r'(?<=vip\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0)
                 vip = settingsTable[-1][IDX_VIP]
@@ -215,7 +212,7 @@ if __name__ == '__main__':
                 settingsTable[-1][IDX_DESC] = (re.search(r'(?<=\").+(?=\")', line)).group(0)
             #print("settingsTable: ", settingsTable[idx] )
 
-    output_file=hostname + '-cfg-' + str(date.today()) + '.csv'  # 결과 파일 이름
+    output_file=hostname + '-cfg-' + date.today().strftime('%Y%m%d') + '.csv'  # 결과 파일 이름
     with open(output_file, 'w') as out_file:
         out_file.write("Vip, Vport, Rip, Rports, SLB method, Virt, Group No, RealSvr No, Description, Status, No. of Current Sessions\n")
         for row in settingsTable:
