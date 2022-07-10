@@ -166,7 +166,6 @@
   name "tree_web;443;20220709"
 /c/slb/group 3
 	ipver v4
-	metric hash
 	add 3
 	add 4
   name "tree_admin;8080;20220709"

@@ -34,7 +34,7 @@ from datetime import date
 
 ##### global variables ########################################################
 ## for group slb method settings processing
-DEFAULT_METRIC='leastConnections'
+DEFAULT_SLB_METHOD='leastConnections'
 IS_SLB_METHOD='metric'
 INIT_VALUE='-1'
 
@@ -166,6 +166,8 @@ if __name__ == '__main__':
                 groupNo = (re.search(r'(?<=/c/slb/group\s)[\d]+', line)).group(0)
                 groupProfiles[groupNo]=["" for i in range(GP_LAST_IDX+1)]
             elif re.search(r'add\s[\d]+', line):
+                if groupProfiles[groupNo][IDX_GP_SLB] == '':
+                    groupProfiles[groupNo][IDX_GP_SLB] = DEFAULT_SLB_METHOD ## 'metric' 구문이 없는 경우, default 값을 사용
                 if groupProfiles[groupNo][IDX_GP_RIDS] == '':      ## real rid에 값이 없으면
                     groupProfiles[groupNo][IDX_GP_RIDS] = []
                 groupProfiles[groupNo][IDX_GP_RIDS].append((re.search(r'(?<=\s)[\d]+', line)).group(0))
@@ -173,7 +175,6 @@ if __name__ == '__main__':
                 groupProfiles[groupNo][IDX_GP_SLB] = (re.search(r'(?<=metric\s)[\w]+', line)).group(0)
             elif re.search(r'name\s\"', line):
                 groupProfiles[groupNo][IDX_GP_DESC] = (re.search(r'(?<=\").+(?=\")', line)).group(0)
-                print("Group desc: ", groupProfiles[groupNo][IDX_GP_DESC])
             elif re.search(r'health\s[\w]+', line):
                 groupProfiles[groupNo][IDX_GP_HC] = (re.search(r'(?<=health\s)[\w]+', line)).group(0)
             elif re.search(r'/c/slb/virt\s[\d]+', line):
@@ -197,6 +198,8 @@ if __name__ == '__main__':
                     if settingsTable[-1][IDX_RSVR_NO] != '':                     ## real server no. 값이 이미 있으면
                         settingsTable.append(copy.deepcopy(settingsTable[-1]))   ## 테이블 마지막 레코드를 복붙해서 새로 row를 만들자. 단, deepcopy() 를 이용하지 않으면 call by reference 로 복사하여 새로운 것을 편집하면 예전 것도 변경됨.
                     settingsTable[-1][IDX_RSVR_NO] = realNo
+                    if groupProfiles[settingsTable[-1][IDX_GROUP_NO]][IDX_GP_SLB] == '':
+                        settingsTable[-1][IDX_SLB_METHOD] = DEFAULT_SLB_METHOD ## 'metric' 구문이 없는 경우, default 값을 사용
                     settingsTable[-1][IDX_SLB_METHOD] = groupProfiles[settingsTable[-1][IDX_GROUP_NO]][IDX_GP_SLB]
                     settingsTable[-1][IDX_DESC] = groupProfiles[settingsTable[-1][IDX_GROUP_NO]][IDX_GP_DESC]
                     settingsTable[-1][IDX_RIP] = realProfiles[settingsTable[-1][IDX_RSVR_NO]][IDX_RP_IP]
