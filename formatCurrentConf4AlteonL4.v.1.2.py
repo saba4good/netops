@@ -53,7 +53,8 @@ IDX_RP_IP=0
 IDX_RP_PORTS=1
 IDX_RP_DESC=2
 IDX_RP_HC=3
-RP_LAST_IDX=IDX_RP_HC
+IDX_RP_HC_IP_PORT=4
+RP_LAST_IDX=IDX_RP_HC_IP_PORT
 
 IDX_GP_SLB=0
 IDX_GP_RIDS=1
@@ -62,16 +63,17 @@ IDX_GP_HC=3
 GP_LAST_IDX=IDX_GP_HC
 
 IDX_VIP=0
-IDX_VPORT=1
-IDX_RIP=2
-IDX_RPORTS=3
-IDX_SLB_METHOD=4
-IDX_VIRT=5
-IDX_GROUP_NO=6
-IDX_RSVR_NO=7
-IDX_DESC=8
-IDX_CURRSTAT=9
-IDX_CURRSESS=10
+IDX_VPORT=1 + IDX_VIP
+IDX_RIP=1 + IDX_VPORT
+IDX_RPORTS=1 + IDX_RIP
+IDX_SLB_METHOD=1 + IDX_RPORTS
+IDX_HEALTHCHECK=1 + IDX_SLB_METHOD
+IDX_VIRT=1 + IDX_HEALTHCHECK
+IDX_GROUP_NO=1 + IDX_VIRT
+IDX_RSVR_NO=1 + IDX_GROUP_NO
+IDX_DESC=1 + IDX_RSVR_NO
+IDX_CURRSTAT=1 + IDX_DESC
+IDX_CURRSESS=1 + IDX_CURRSTAT
 LAST_IDX=IDX_CURRSESS ## 맨 마지막 순서인 인덱스명
 # Tuple
 I_CURRSESS = 0
@@ -122,18 +124,19 @@ if __name__ == '__main__':
             elif START_OF_SETTINGS in line:   ### 프로세싱 필요한 라인을 찾는다.
                 break
         ######### health check : [profile_id, ip, ports, type, logexp] ##########
-        healthProfiles = []
+        healthProfiles = dict()
+        hcID = ''
         for line in cfg_file:
             if re.search(r'/c/slb/advhc/health\s[\w_]+', line):
-                healthProfiles.append(["" for i in range(HP_LAST_IDX+1)])
-                healthProfiles[-1][IDX_HP_ID] = (re.search(r'(?<=/c/slb/advhc/health\s)[\w_]+', line)).group(0)
-                healthProfiles[-1][IDX_HP_TYPE] = (re.search(r'[\w]+$', line)).group(0)
+                hcID = (re.search(r'(?<=/c/slb/advhc/health\s)[\w_]+', line)).group(0)
+                healthProfiles[hcID]=["" for i in range(HP_LAST_IDX+1)]
+                healthProfiles[hcID][IDX_HP_TYPE] = (re.search(r'[\w]+$', line)).group(0)
             elif re.search(r'dport\s[\d]+', line):
-                healthProfiles[-1][IDX_HP_PORT] = (re.search(r'(?<=dport\s)[\d]+', line)).group(0)
+                healthProfiles[hcID][IDX_HP_PORT] = (re.search(r'(?<=dport\s)[\d]+', line)).group(0)
             elif re.search(r'dest\s[\d]+', line):
-                healthProfiles[-1][IDX_HP_IP] = (re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0)
+                healthProfiles[hcID][IDX_HP_IP] = (re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0)
             elif re.search(r'logexp\s\"', line):
-                healthProfiles[-1][IDX_HP_LOGEXP] = (re.search(r'(?<=\").+(?=\")', line)).group(0)
+                healthProfiles[hcID][IDX_HP_LOGEXP] = (re.search(r'(?<=\").+(?=\")', line)).group(0)
             elif re.search(r'/c/slb$', line): ## health check 구문을 빠져나가면
                 break                         ## for loop을 중단하여 cfg_file을 그만 읽는다.
         ######### real  : [real No., rip, rports, description] ##################
@@ -145,12 +148,23 @@ if __name__ == '__main__':
             if re.search(r'/c/slb/real\s[\d]+', line):
                 realNo = (re.search(r'(?<=/c/slb/real\s)[\d]+', line)).group(0)
                 realProfiles[realNo]=["" for i in range(RP_LAST_IDX+1)]
+                hc_ip_ports = ''
             elif re.search(r'rip\s[\d]+\.[\d]+\.[\d]+\.[\d]+', line):
                 realProfiles[realNo][IDX_RP_IP] = (re.search(r'(?<=rip\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0)
             elif re.search(r'name\s\"', line):
                 realProfiles[realNo][IDX_RP_DESC] = (re.search(r'(?<=\").+(?=\")', line)).group(0)
             elif re.search(r'health\s[\w_]+', line):
                 realProfiles[realNo][IDX_RP_HC] = (re.search(r'(?<=health\s)[\w_]+', line)).group(0)
+                if healthProfiles[realProfiles[realNo][IDX_RP_HC]][IDX_HP_TYPE] == 'LOGEXP':
+                    for hcProfile in healthProfiles[realProfiles[realNo][IDX_RP_HC]][IDX_HP_LOGEXP].split("&"):
+                        try:
+                            if healthProfiles[hcProfile]:
+                                if hc_ip_ports != '':
+                                    hc_ip_ports += ';'
+                                hc_ip_ports += (healthProfiles[hcProfile][IDX_HP_IP] + ':' + healthProfiles[hcProfile][IDX_HP_PORT])
+                        except KeyError:  ### when the key isn't in the dictonary
+                            pass
+                    realProfiles[realNo][IDX_RP_HC_IP_PORT] = hc_ip_ports
             elif re.search(r'addport\s[\d]+', line):
                 if realProfiles[realNo][IDX_RP_PORTS] != '':      ## real ports에 이미 값이 있으면
                     realProfiles[realNo][IDX_RP_PORTS] += ';'     ## 세미콜른을 붙여줘라
@@ -201,6 +215,7 @@ if __name__ == '__main__':
                     if groupProfiles[settingsTable[-1][IDX_GROUP_NO]][IDX_GP_SLB] == '':
                         settingsTable[-1][IDX_SLB_METHOD] = DEFAULT_SLB_METHOD ## 'metric' 구문이 없는 경우, default 값을 사용
                     settingsTable[-1][IDX_SLB_METHOD] = groupProfiles[settingsTable[-1][IDX_GROUP_NO]][IDX_GP_SLB]
+                    settingsTable[-1][IDX_HEALTHCHECK] = realProfiles[settingsTable[-1][IDX_RSVR_NO]][IDX_RP_HC_IP_PORT]
                     settingsTable[-1][IDX_DESC] = groupProfiles[settingsTable[-1][IDX_GROUP_NO]][IDX_GP_DESC]
                     settingsTable[-1][IDX_RIP] = realProfiles[settingsTable[-1][IDX_RSVR_NO]][IDX_RP_IP]
                     settingsTable[-1][IDX_RPORTS] = (re.search(r'(?<=rport\s)[\d]+', line)).group(0)
@@ -217,7 +232,7 @@ if __name__ == '__main__':
 
     output_file=hostname + '-cfg-' + date.today().strftime('%Y%m%d') + '.csv'  # 결과 파일 이름
     with open(output_file, 'w') as out_file:
-        out_file.write("Vip, Vport, Rip, Rports, SLB method, Virt, Group No, RealSvr No, Description, Status, No. of Current Sessions\n")
+        out_file.write("Vip, Vport, Rip, Rports, SLB method, Health Check, Virt, Group No, RealSvr No, Description, Status, No. of Current Sessions\n")
         for row in settingsTable:
             for j, value in enumerate(row):
                 out_file.write(value)
