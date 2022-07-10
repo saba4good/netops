@@ -147,7 +147,7 @@ if __name__ == '__main__':
                 realProfiles[realNo]=["" for i in range(RP_LAST_IDX+1)]
             elif re.search(r'rip\s[\d]+\.[\d]+\.[\d]+\.[\d]+', line):
                 realProfiles[realNo][IDX_RP_IP] = (re.search(r'(?<=rip\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0)
-            elif re.search(r'name\s[\d]+', line):
+            elif re.search(r'name\s\"', line):
                 realProfiles[realNo][IDX_RP_DESC] = (re.search(r'(?<=\").+(?=\")', line)).group(0)
             elif re.search(r'health\s[\w_]+', line):
                 realProfiles[realNo][IDX_RP_HC] = (re.search(r'(?<=health\s)[\w_]+', line)).group(0)
@@ -171,8 +171,9 @@ if __name__ == '__main__':
                 groupProfiles[groupNo][IDX_GP_RIDS].append((re.search(r'(?<=\s)[\d]+', line)).group(0))
             elif re.search(r'metric\s[\w]+', line):
                 groupProfiles[groupNo][IDX_GP_SLB] = (re.search(r'(?<=metric\s)[\w]+', line)).group(0)
-            elif re.search(r'name\s[\d]+', line):
+            elif re.search(r'name\s\"', line):
                 groupProfiles[groupNo][IDX_GP_DESC] = (re.search(r'(?<=\").+(?=\")', line)).group(0)
+                print("Group desc: ", groupProfiles[groupNo][IDX_GP_DESC])
             elif re.search(r'health\s[\w]+', line):
                 groupProfiles[groupNo][IDX_GP_HC] = (re.search(r'(?<=health\s)[\w]+', line)).group(0)
             elif re.search(r'/c/slb/virt\s[\d]+', line):
@@ -210,7 +211,7 @@ if __name__ == '__main__':
             elif re.search(r'vip\s[\d]+\.[\d]+\.[\d]+\.[\d]+', line):
                 settingsTable[-1][IDX_VIP] = (re.search(r'(?<=vip\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0)
                 vip = settingsTable[-1][IDX_VIP]
-            elif re.search(r'vname\s[\d]+', line):
+            elif re.search(r'vname\s\"', line):
                 settingsTable[-1][IDX_DESC] = (re.search(r'(?<=\").+(?=\")', line)).group(0)
             #print("settingsTable: ", settingsTable[idx] )
 
