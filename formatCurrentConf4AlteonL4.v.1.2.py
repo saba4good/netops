@@ -71,7 +71,8 @@ IDX_HEALTHCHECK=1 + IDX_SLB_METHOD
 IDX_VIRT=1 + IDX_HEALTHCHECK
 IDX_GROUP_NO=1 + IDX_VIRT
 IDX_RSVR_NO=1 + IDX_GROUP_NO
-IDX_DESC=1 + IDX_RSVR_NO
+IDX_NOTES=1 + IDX_RSVR_NO
+IDX_DESC=1 + IDX_NOTES
 IDX_CURRSTAT=1 + IDX_DESC
 IDX_CURRSESS=1 + IDX_CURRSTAT
 LAST_IDX=IDX_CURRSESS ## 맨 마지막 순서인 인덱스명
@@ -84,6 +85,7 @@ FLAG_VIP=1
 FLAG_VPORT=2
 FLAG_RIP=3
 FLAG_MULTI_RPORT=4
+FLAG_PIP=5
 #OUTPUT_FILE='output-l4-settings' + str(date.today()) + '.csv'  # 결과 파일 이름
 if __name__ == '__main__':
     # 이 프로그램을 실행할 때, 받아들일 arguments 2개
@@ -196,14 +198,18 @@ if __name__ == '__main__':
                 settingsTable[-1][IDX_VIRT] = (re.search(r'(?<=/c/slb/virt\s)[\d]+', line)).group(0)
                 break
         ######### virt  : [virt No., vip, vport, group No., description ] #######
+        prevFlag = INIT_FLAG
         vip = ''
         for line in cfg_file:
             if re.search(r'/c/slb/virt\s[\d]+', line):
-                settingsTable.append(["" for i in range(LAST_IDX+1)])
-                settingsTable[-1][IDX_VIRT] = (re.search(r'(?<=/c/slb/virt\s)[\d]+', line)).group(0)
-                if re.search(r'service\s[\d]+', line):
-                    settingsTable[-1][IDX_VPORT] = (re.search(r'(?<=service\s)[\d]+', line)).group(0)
-                    settingsTable[-1][IDX_VIP] = vip
+                if not re.search(r'/pip$', line):
+                    settingsTable.append(["" for i in range(LAST_IDX+1)])
+                    settingsTable[-1][IDX_VIRT] = (re.search(r'(?<=/c/slb/virt\s)[\d]+', line)).group(0)
+                    if re.search(r'service\s[\d]+', line):
+                        settingsTable[-1][IDX_VPORT] = (re.search(r'(?<=service\s)[\d]+', line)).group(0)
+                        settingsTable[-1][IDX_VIP] = vip
+                else:
+                    prevFlag = FLAG_PIP
             elif re.search(r'group\s[\d]+', line):
                 settingsTable[-1][IDX_GROUP_NO] = (re.search(r'(?<=group\s)[\d]+', line)).group(0)
             elif re.search(r'rport\s[\d]+', line):
@@ -237,6 +243,9 @@ if __name__ == '__main__':
                 vip = settingsTable[-1][IDX_VIP]
             elif re.search(r'vname\s\"', line):
                 settingsTable[-1][IDX_DESC] = (re.search(r'(?<=\").+(?=\")', line)).group(0)
+            elif re.search(r'addr\s', line):
+                if prevFlag == FLAG_PIP:
+                    settingsTable[-1][IDX_NOTES] = 'PIP NAT: ' + (re.search(r'(?<=v4\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0)
             #print("settingsTable: ", settingsTable[idx] )
 
     output_file=hostname + '-cfg-' + date.today().strftime('%Y%m%d') + '.csv'  # 결과 파일 이름
