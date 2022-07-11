@@ -221,8 +221,17 @@ if __name__ == '__main__':
                     settingsTable[-1][IDX_RPORTS] = (re.search(r'(?<=rport\s)[\d]+', line)).group(0)
                     if settingsTable[-1][IDX_RPORTS] == '0':   ## rport 0, 즉 multi port인 경우
                         settingsTable[-1][IDX_RPORTS] = realProfiles[settingsTable[-1][IDX_RSVR_NO]][IDX_RP_PORTS]
-                    settingsTable[-1][IDX_CURRSTAT] = statsDic[(settingsTable[-1][IDX_RSVR_NO], settingsTable[-1][IDX_RPORTS])][I_CURRSTAT]
-                    settingsTable[-1][IDX_CURRSESS] = statsDic[(settingsTable[-1][IDX_RSVR_NO], settingsTable[-1][IDX_RPORTS])][I_CURRSESS]
+                        settingsTable[-1][IDX_CURRSTAT] = ''
+                        settingsTable[-1][IDX_CURRSESS] = ''
+                        for rPort in settingsTable[-1][IDX_RPORTS].split(";"):
+                            if settingsTable[-1][IDX_CURRSTAT] != '' or settingsTable[-1][IDX_CURRSESS] != '':
+                                settingsTable[-1][IDX_CURRSTAT] += ';'
+                                settingsTable[-1][IDX_CURRSESS] += ';'
+                            settingsTable[-1][IDX_CURRSTAT] = statsDic[(settingsTable[-1][IDX_RSVR_NO], rPort)][I_CURRSTAT]        
+                            settingsTable[-1][IDX_CURRSESS] = statsDic[(settingsTable[-1][IDX_RSVR_NO], rPort)][I_CURRSESS]
+                    else:
+                        settingsTable[-1][IDX_CURRSTAT] = statsDic[(settingsTable[-1][IDX_RSVR_NO], settingsTable[-1][IDX_RPORTS])][I_CURRSTAT]
+                        settingsTable[-1][IDX_CURRSESS] = statsDic[(settingsTable[-1][IDX_RSVR_NO], settingsTable[-1][IDX_RPORTS])][I_CURRSESS]
             elif re.search(r'vip\s[\d]+\.[\d]+\.[\d]+\.[\d]+', line):
                 settingsTable[-1][IDX_VIP] = (re.search(r'(?<=vip\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0)
                 vip = settingsTable[-1][IDX_VIP]
