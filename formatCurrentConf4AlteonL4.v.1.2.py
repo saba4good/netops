@@ -200,6 +200,8 @@ if __name__ == '__main__':
         ######### virt  : [virt No., vip, vport, group No., description ] #######
         prevFlag = INIT_FLAG
         vip = ''
+        ## for pip [(virt No., vport): [srcnet No., pip nat, src ip]]
+        ## before writing into the output file, for loop settingsTable to fill in the PIP info
         for line in cfg_file:
             if re.search(r'/c/slb/virt\s[\d]+', line):
                 if not re.search(r'/pip$', line):
@@ -250,7 +252,7 @@ if __name__ == '__main__':
 
     output_file=hostname + '-cfg-' + date.today().strftime('%Y%m%d') + '.csv'  # 결과 파일 이름
     with open(output_file, 'w') as out_file:
-        out_file.write("Vip, Vport, Rip, Rports, SLB method, Health Check, Virt, Group No, RealSvr No, Description, Status, No. of Current Sessions\n")
+        out_file.write("Vip, Vport, Rip, Rports, SLB method, Health Check, Virt, Group No, RealSvr No, Misc., Description, Status, No. of Current Sessions\n")
         for row in settingsTable:
             for j, value in enumerate(row):
                 out_file.write(value)
