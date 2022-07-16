@@ -1,0 +1,288 @@
+/c/sys/access/mgmt/add 172.16.0.200 255.255.255.255 ssh|telnet|snmp
+/c/sys/access/port/add 1
+/c/sys/access/port/add 2
+/c/sys/access/port/add 3
+/c/sys/access/port/add 4
+/c/sys/access/port/add 5
+/c/sys/access/port/add 6
+/c/sys/access/port/add 7
+/c/sys/access/port/add 8
+/c/sys/access/port/add 9
+/c/sys/access/port/add 10
+/c/sys/ssnmp
+  name "dmz-l4-1"
+  rcomm "snmp-secret-key"
+/c/port 1
+  name "uplink"
+  pvid 100
+/c/port 2
+  name "interlink"
+  pvid 100
+/c/port 3
+  name "interlink"
+  pvid 100
+/c/l2/fdb
+  recover ena
+  inter 1
+/c/l2/vlan 1
+  dis
+  learn ena
+  def 0
+/c/l2/vlan 100
+  ena
+  name "nw_conn"
+  learn ena
+  def 1 2 3 4 5 6 7 8 9 10
+/c/l2/stg 1/off
+/c/l2/stg 1/clear
+/c/l2/stg 1/add 1 100
+/c/l2/trunk 1
+  ena
+  add 2
+  add 3
+/c/sys/syslog
+ hst1 172.16.0.200 7 0 all 514
+/c/pmirr/mirror ena
+/c/pmirr/monport 23
+  add 5 both all
+/c/l3/if 100
+  ena
+  ipver v4
+  addr 172.16.10.10
+  mask 255.255.255.0
+  broad 172.16.10.255
+  vlan 100
+/c/l3/gw 1
+  ena
+  ipver v4
+  addr 172.16.10.1
+/c/l3/vrrp/hotstan enabled
+/c/l3/vrrp/srvPbkp disabled
+/c/l3/vrrp/vr 17
+  ena
+  ipver v4
+  vrid 17
+  if 100
+  prio 101
+  addr 172.16.10.17
+  share dis
+/c/l3/vrrp/group
+  ena
+  ipver v4
+  vrid 255
+  if 100
+  prio 101
+  share dis
+/c/slb/ssl
+	off
+/c/slb/advhc/health 1 HTTP
+	name "geterr_a3098b_201807_https_hc"
+	dport 443
+	inter 5
+	timeout 5
+	ssl enabled
+/c/slb/advhc/health 18_8000 TCP
+  name "tree_was_1;20220609"
+  dport 8000
+  dest 4 172.16.5.18
+/c/slb/advhc/health 18_8001 TCP
+  name "tree_was_1;20220609"
+  dport 8001
+  dest 4 172.16.5.18
+/c/slb/advhc/health 19_8000 TCP
+  name "tree_was_2;20220609"
+  dport 8000
+  dest 4 172.16.5.19
+/c/slb/advhc/health 19_8001 TCP
+  name "tree_was_2;20220609"
+  dport 8001
+  dest 4 172.16.5.19
+/c/slb/advhc/health advhc_mob_18 LOGEXP
+  name "tree_was_1;20220609"
+  logexp "18_8000&18_8001&tcp"
+/c/slb/advhc/health advhc_mob_19 LOGEXP
+  name "tree_was_2;20220609"
+  logexp "19_8000&19_8001&tcp"
+/c/slb
+  on
+/c/slb/adv
+  direct ena
+  sessvpt ena
+  vstat ena
+  submac "dis"
+/c/slb/sync
+  prios d
+/c/slb/sync/peer 1
+  ena
+  addr 172.16.10.11
+/c/slb/real 1
+	ena
+	ipver v4
+	rip 172.16.10.18
+  health advhc_mob_18
+	name "tree_web1;20220609"
+/c/slb/real 2
+	ena
+	ipver v4
+  rip 172.16.10.19
+  health advhc_mob_19
+	name "tree_web2;20220609"
+/c/slb/real 3
+	ena
+	ipver v4
+	rip 172.16.10.18
+	name "tree_web1;20220701"
+/c/slb/real 4
+	ena
+	ipver v4
+  rip 172.16.10.19
+	name "tree_web2;20220701"
+/c/slb/real 5
+	ena
+	ipver v4
+	rip 172.16.10.20
+  addport 8010
+  addport 8011
+	name "wallet_web1;20220702"
+/c/slb/real 6
+	ena
+	ipver v4
+  rip 172.16.10.21
+  addport 8010
+  addport 8011
+	name "wallet_web2;20220702"
+/c/slb/real 24
+	ena
+	ipver v4
+  rip 172.16.10.24
+  name "club_web1;20220617"
+/c/slb/real 25
+	ena
+	ipver v4
+  rip 172.16.10.25
+  name "club_web2;20220617"
+/c/slb/group 1
+	ipver v4
+	metric roundrobin
+  health icmp
+	add 3
+	add 4
+	name "tree_web;80;20220709"
+/c/slb/group 2
+	ipver v4
+	metric hash
+	add 1
+	add 2
+  name "tree_web;443;20220709"
+/c/slb/group 3
+	ipver v4
+	add 3
+	add 4
+  name "tree_admin;8080;20220709"
+/c/slb/group 4
+	ipver v4
+	metric hash
+	add 5
+	add 6
+  name "wallet_web;8010_8011;20220709"
+/c/slb/group 23
+	ipver v4
+	metric hash
+	add 24
+	add 25
+  name "club_web;8080;20220617"
+/c/slb/group 24
+	ipver v4
+	metric roundrobin
+	add 24
+	add 25
+  name "club_web;8090;20220617"
+/c/slb/virt 1
+	ena
+	ipver v4
+	vip 172.16.10.17
+	vname "tree_web;20220609"
+/c/slb/virt 1/service 80 http
+	group 1
+	rport 80
+	mirror ena
+/c/slb/virt 1/service 443 https
+	group 2
+	rport 443
+	mirror ena
+/c/slb/virt 1/service 8000 basic-slb
+	group 3
+	rport 8080
+	mirror ena
+/c/slb/virt 2
+	ena
+	ipver v4
+	vip 172.16.10.22
+	vname "wallet_web;20220609"
+/c/slb/virt 2/service 8010 basic-slb
+	group 4
+	rport 0
+/c/slb/virt 23
+	ena
+	ipver v4
+	vip 172.16.10.23
+	vname "club_web;20220617"
+/c/slb/virt 23/service 8080 basic-slb
+	group 23
+	rport 8080
+	mirror ena
+/c/slb/virt 23/service 8090 basic-slb
+	group 24
+	rport 8090
+	mirror ena
+/c/slb/virt 124
+	ena
+	ipver v4
+	vip 172.16.10.23
+	vname "club_web;local_v24"
+  srcnet "24"
+/c/slb/virt 123/service 8080 basic-slb
+	group 23
+	rport 8080
+/c/slb/virt 123/service 8080 basic-slb/pip
+  mode address
+  addr v4 172.16.10.124 255.255.255.255 persist disable
+/c/slb/virt 123/service 8090 basic-slb
+	group 24
+	rport 8090
+/c/slb/virt 123/service 8090 basic-slb/pip
+  mode address
+  addr v4 172.16.10.124 255.255.255.255 persist disable
+/c/slb/virt 125
+	ena
+	ipver v4
+	vip 172.16.10.23
+	vname "club_web;local_v25"
+  srcnet "25"
+/c/slb/virt 123/service 8080 basic-slb
+	group 23
+	rport 8080
+/c/slb/virt 123/service 8080 basic-slb/pip
+  mode address
+  addr v4 172.16.10.125 255.255.255.255 persist disable
+/c/slb/virt 123/service 8090 basic-slb
+	group 24
+	rport 8090
+/c/slb/virt 123/service 8090 basic-slb/pip
+  mode address
+  addr v4 172.16.10.125 255.255.255.255 persist disable
+/c/l3/hamode vrrp
+/c/slb/nwclass 24
+  type "address"
+  ipver v4
+/c/slb/nwclass 24/network 1
+  net subnet 172.16.10.24 255.255.255.255 include
+/c/slb/nwclass 24/network 2
+  net subnet 172.16.10.124 255.255.255.255 include
+/c/slb/nwclass 25
+  type "address"
+  ipver v4
+/c/slb/nwclass 25/network 1
+  net subnet 172.16.10.25 255.255.255.255 include
+/c/slb/nwclass 25/network 2
+  net subnet 172.16.10.125 255.255.255.255 include
