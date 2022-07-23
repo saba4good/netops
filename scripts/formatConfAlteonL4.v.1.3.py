@@ -36,6 +36,8 @@ INIT_VALUE='-1'
 HOSTNAME_FINDER='/c/sys/ssnmp'
 FLAG_HOSTNAME=False
 START_OF_SETTINGS='/c/slb/ssl'
+START_OF_REALS='/c/slb/real'
+START_OF_GROUPS='/c/slb/group'
 IDX_HP_ID=0
 IDX_HP_IP=1
 IDX_HP_PORT=2
@@ -76,6 +78,8 @@ FLAG_VPORT=2
 FLAG_RIP=3
 FLAG_MULTI_RPORT=4
 FLAG_PIP=5
+FLAG_GROUP=6
+FLAG_VIRT=7
 #OUTPUT_FILE='output-l4-settings' + str(date.today()) + '.csv'  # 결과 파일 이름
 if __name__ == '__main__':
     # 이 프로그램을 실행할 때, 받아들일 arguments 2개
@@ -119,6 +123,13 @@ if __name__ == '__main__':
         realNo = ''
         groupProfiles = dict()
         groupNo = ''
+        in_group_sec=INIT_FLAG ## to set a flag when in the group settings section
+        for line in cfg_file:
+            if START_OF_REALS in line:   ### 프로세싱 필요한 라인을 찾는다.
+                realNo = (re.search(r'(?<=/c/slb/real\s)[\d]+', line)).group(0)
+                realProfiles[realNo]=["" for i in range(RP_LAST_IDX+1)]
+                hc_ip_ports = ''
+                break
         for line in cfg_file:
             if re.search(r'/c/slb/real\s[\d]+', line):
                 realNo = (re.search(r'(?<=/c/slb/real\s)[\d]+', line)).group(0)
@@ -144,12 +155,26 @@ if __name__ == '__main__':
                 if realProfiles[realNo][IDX_RP_PORTS] != '':      ## real ports에 이미 값이 있으면
                     realProfiles[realNo][IDX_RP_PORTS] += ';'     ## 세미콜른을 붙여줘라
                 realProfiles[realNo][IDX_RP_PORTS] += (re.search(r'(?<=\s)[\d]+', line)).group(0)
-            elif re.search(r'/c/slb/group\s[\d]+', line):
-                groupNo = (re.search(r'(?<=/c/slb/group\s)[\d]+', line)).group(0)
-                groupProfiles[groupNo]=["" for i in range(GP_LAST_IDX+1)]
+            elif re.search(r'/c/slb/', line) and not re.search(r'/real', line):
+                if re.search(r'/c/slb/group', line):
+                    groupNo = (re.search(r'(?<=/c/slb/group\s)[\d]+', line)).group(0)
+                    groupProfiles[groupNo]=["" for i in range(GP_LAST_IDX+1)]
+                    in_group_sec=FLAG_GROUP  ## to set a flag when in the group settings section
                 break
+        print("real dict : ")
+        print("{:<8} {:<20} {:<12} {:<30} {:<20} {:<40}".format('rNo', 'rIP', 'rPorts', 'Desc', 'HC label', 'HC ports'))
+        for realSvrNo, realSvr in realProfiles.items():
+            rip, rPorts, desc, hc_label, hc_ports = realSvr
+            print("{:<8} {:<20} {:<12} {:<30} {:<20} {:<40}".format(realSvrNo, rip, rPorts, desc, hc_label, hc_ports))
         ######### group : [group No., slb method, [real No.s'], description ] ###
+        if in_group_sec!=FLAG_GROUP:
+            for line in cfg_file:
+                if START_OF_GROUPS in line:   ### 프로세싱 필요한 라인을 찾는다.
+                    groupNo = (re.search(r'(?<=/c/slb/group\s)[\d]+', line)).group(0)
+                    groupProfiles[groupNo]=["" for i in range(GP_LAST_IDX+1)]
+                    break
         settingsTable = []
+        in_virt_sec=INIT_FLAG
         for line in cfg_file:
             if re.search(r'/c/slb/group\s[\d]+', line):
                 groupNo = (re.search(r'(?<=/c/slb/group\s)[\d]+', line)).group(0)
@@ -166,13 +191,26 @@ if __name__ == '__main__':
                 groupProfiles[groupNo][IDX_GP_DESC] = (re.search(r'(?<=\").+(?=\")', line)).group(0)
             elif re.search(r'health\s[\w]+', line):
                 groupProfiles[groupNo][IDX_GP_HC] = (re.search(r'(?<=health\s)[\w]+', line)).group(0)
-            elif re.search(r'/c/slb/virt\s[\d]+', line):
-                settingsTable.append(["" for i in range(LAST_IDX+1)])
-                settingsTable[-1][IDX_VIRT] = (re.search(r'(?<=/c/slb/virt\s)[\d]+', line)).group(0)
+            elif re.search(r'/c/slb/', line) and not re.search(r'/group', line):
+                if re.search(r'/c/slb/virt\s[\d]+', line):
+                    settingsTable.append(["" for i in range(LAST_IDX+1)])
+                    settingsTable[-1][IDX_VIRT] = (re.search(r'(?<=/c/slb/virt\s)[\d]+', line)).group(0)
+                    in_virt_sec=FLAG_VIRT
                 break
+        print("Group dict : ")
+        print("{:<8} {:<20} {:<30} {:<30} {:<40}".format('gNo', 'slb', 'rNo', 'Desc', 'HC'))
+        for gNo, group in groupProfiles.items():
+            slb, rno, desc, hc = group
+            print("{:<8} {:<20} {:<30} {:<30} {:<40}".format(gNo, slb, ';'.join(rno), desc, hc))
         ######### virt  : [virt No., vip, vport, group No., description ] #######
         prevFlag = INIT_FLAG
         vip = ''
+        if in_virt_sec!=FLAG_VIRT:
+            for line in cfg_file:
+                if re.search(r'/c/slb/virt\s[\d]+', line):
+                    settingsTable.append(["" for i in range(LAST_IDX+1)])
+                    settingsTable[-1][IDX_VIRT] = (re.search(r'(?<=/c/slb/virt\s)[\d]+', line)).group(0)
+                    break
         ## for pip [(virt No., vport): [srcnet No., pip nat, src ip]]
         ## before writing into the output file, for loop settingsTable to fill in the PIP info
         for line in cfg_file:
