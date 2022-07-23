@@ -161,6 +161,16 @@
 	ipver v4
   rip 172.16.10.25
   name "club_web2;20220617"
+/c/slb/real 26
+	ena
+	ipver v4
+  rip 172.16.10.26
+  name "club_web3;20220617"
+/c/slb/real 27
+	ena
+	ipver v4
+  rip 172.16.10.27
+  name "club_web4;20220617"
 /c/slb/group 1
 	ipver v4
 	metric roundrobin
@@ -190,13 +200,35 @@
 	metric hash
 	add 24
 	add 25
+  add 26
+	add 27
   name "club_web;8080;20220617"
 /c/slb/group 24
 	ipver v4
-	metric roundrobin
+	rmetric leastconns
 	add 24
 	add 25
+  add 26
   name "club_web;8090;20220617"
+/c/slb/port "1"
+  client ena
+  server ena
+  proxy ena
+/c/slb/port "2"
+  client ena
+  server ena
+  proxy ena
+/c/slb/port "3"
+  client ena
+  server ena
+  proxy ena
+/c/slb/port "4"
+  client ena
+  server ena
+  proxy ena
+  filt ena
+  add 10
+  add 90
 /c/slb/virt 1
 	ena
 	ipver v4
@@ -272,6 +304,44 @@
   mode address
   addr v4 172.16.10.125 255.255.255.255 persist disable
 /c/l3/hamode vrrp
+/c/slb/filt 10
+ena
+action allow
+ipver v4
+sip any
+smask 0.0.0.0
+dip 224.0.0.0
+dmask 240.0.0.0
+group 1
+rport 0
+vlan any
+add 3
+add 6
+add 7
+add 8
+add 10
+add 11
+add 25
+add 26
+/c/slb/filt 90
+ena
+action deny
+ipver v4
+sip 127.0.0.0
+smask 255.255.255.0
+dip 224.0.0.0
+dmask 240.0.0.0
+group 1
+rport 0
+vlan any
+add 3
+add 6
+add 7
+add 8
+add 10
+add 11
+add 25
+add 26
 /c/slb/nwclass 24
   type "address"
   ipver v4
@@ -286,3 +356,7 @@
   net subnet 172.16.10.25 255.255.255.255 include
 /c/slb/nwclass 25/network 2
   net subnet 172.16.10.125 255.255.255.255 include
+/c/slb/gslb
+off
+hostlk dis
+/c/sys/access/https/https d
