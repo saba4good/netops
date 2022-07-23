@@ -210,6 +210,8 @@ if __name__ == '__main__':
             elif re.search(r'addr\s', line):
                 if prevFlag == FLAG_PIP:
                     settingsTable[-1][IDX_NOTES] = 'PIP NAT: ' + (re.search(r'(?<=v4\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0)
+            elif (re.search(r'/c/slb/', line) or re.search(r'/c/l3/', line)) and not re.search(r'virt', line):
+                break
             #print("settingsTable: ", settingsTable[idx] )
 
     output_file=hostname + '-cfg-' + date.today().strftime('%Y%m%d') + '.csv'  # 결과 파일 이름
