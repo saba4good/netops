@@ -29,9 +29,6 @@ FLAG_POOL=2
 FLAG_VIRT=3
 FLAG_VR_PERSIS=4
 FLAG_HOSTNAME=5
-OPEN_BRACKET='{'
-CLOSE_BRACKET='}'
-
 IDX_PL_SLB=0
 IDX_PL_RIPS=1
 IDX_PL_STATUS=3
@@ -69,12 +66,12 @@ if __name__ == '__main__':
         settingsTable = []
         for line in cfg_file:
             match line.split():
-                case ['ltm', 'persistence', persis_method, persis_id, OPEN_BRACKET]:
+                case ['ltm', 'persistence', persis_method, persis_id, '{']:
                     which_section = FLAG_PERSIS
-                case ['ltm', 'pool', pool_id, OPEN_BRACKET]:
+                case ['ltm', 'pool', pool_id, '{']:
                     which_section = FLAG_POOL
                     poolProfiles[pool_id]=["" for i in range(PL_LAST_IDX+1)]
-                case ['ltm', 'virtual', virt_id, OPEN_BRACKET]:
+                case ['ltm', 'virtual', virt_id, '{']:
                     which_section = FLAG_VIRT
                     settingsTable.append(["" for i in range(LAST_IDX+1)])
                     settingsTable[-1][IDX_VIRT] = virt_id
@@ -98,10 +95,10 @@ if __name__ == '__main__':
                                 settingsTable.append(copy.deepcopy(settingsTable[-1]))
                             settingsTable[-1][IDX_RIP] = (re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+', rip_state)).group(0)
                             settingsTable[-1][IDX_SVR_STATUS] = (re.search(r'(?<=:)[\w]+', rip_state)).group(0)
-                case ['persist', OPEN_BRACKET]:
+                case ['persist', '{']:
                     if which_section == FLAG_VIRT:
                         which_section = FLAG_VR_PERSIS
-                case [opening, OPEN_BRACKET]:
+                case [opening, '{']:
                     if which_section == FLAG_VR_PERSIS:
                         which_section = FLAG_VIRT
                         settingsTable[-1][IDX_PERSIS] = persisProfiles[opening]
@@ -110,10 +107,10 @@ if __name__ == '__main__':
                 case ['timeout', time]:
                     if which_section == FLAG_PERSIS:
                         persisProfiles[persis_id] = time
-                case [CLOSE_BRACKET]:
+                case ['}']:
                     if re.search(r'^}', line):
                         which_section =  INIT_VALUE
-                case ['sys', 'global-settings', OPEN_BRACKET]:
+                case ['sys', 'global-settings', '{']:
                     which_section = FLAG_HOSTNAME
                 case ['hostname', hostname_domain]:
                     hostname = hostname_domain
