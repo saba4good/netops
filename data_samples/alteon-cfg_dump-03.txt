@@ -1,3 +1,4 @@
+/* Configuration dump taken 12:00:00 Sat Oct 14, 2017
 /c/sys/access/mgmt/add 172.16.0.200 255.255.255.255 ssh|telnet|snmp
 /c/sys/access/port/add 1
 /c/sys/access/port/add 2
