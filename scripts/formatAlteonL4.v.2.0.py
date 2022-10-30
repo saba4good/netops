@@ -67,17 +67,18 @@ IDX_VIP=0
 IDX_VPORT=1 + IDX_VIP
 IDX_RIP=1 + IDX_VPORT
 IDX_RPORTS=1 + IDX_RIP
-IDX_SLB_METHOD=1 + IDX_RPORTS
+IDX_STD_MODE=1 + IDX_RPORTS
+IDX_SLB_METHOD=1 + IDX_STD_MODE
 IDX_HEALTHCHECK=1 + IDX_SLB_METHOD
 IDX_VIRT=1 + IDX_HEALTHCHECK
 IDX_GROUP_NO=1 + IDX_VIRT
 IDX_RSVR_NO=1 + IDX_GROUP_NO
 IDX_PIP_SNAT=1 + IDX_RSVR_NO
 IDX_PIP_SRC=1 + IDX_PIP_SNAT
-IDX_DESC=1 + IDX_PIP_SRC
-IDX_STD_MODE=1 + IDX_DESC
-LAST_IDX=IDX_STD_MODE ## 맨 마지막 순서인 인덱스명
-OUTPUT_COLUMNS='Vip, Vport, Rip, Rports, SLB method, Health Check, Virt, Group No, RealSvr No, PIP SNAT Pool, PIP src, Description, Server Mode\n'
+IDX_LOC_MODE=1 + IDX_PIP_SRC
+IDX_DESC=1 + IDX_LOC_MODE
+LAST_IDX=IDX_DESC ## 맨 마지막 순서인 인덱스명
+OUTPUT_COLUMNS='Vip, Vport, Rip, Rports, Standby Mode, SLB method, Health Check, Virt, Group No, RealSvr No, PIP SNAT Pool, PIP src, Location/Mode, Description\n'
 #
 INIT_FLAG=-1
 FLAG_VIP=1
@@ -247,6 +248,7 @@ if __name__ == '__main__':
                     settingsTable[-1][IDX_VIRT] = virtNo
                     settingsTable[-1][IDX_VPORT] = vPort
                     settingsTable[-1][IDX_VIP] = vip
+                    #settingsTable[-1][IDX_LOC_MODE] = 'Inline'
                 case ['c','slb','virt',virtNo,'service',vPort,serviceName,'pip']:
                     prevFlag = FLAG_PIP
                 case ['group', groupUsed]:
@@ -276,6 +278,8 @@ if __name__ == '__main__':
                     vip = settingsTable[-1][IDX_VIP]
                 case ['vname',vname]:
                     settingsTable[-1][IDX_DESC] = (re.search(r'(?<=\").+(?=\")', vname)).group(0)
+                case ['nonat', 'ena']:
+                    settingsTable[-1][IDX_LOC_MODE] = 'DSR'
                 case ['srcnet', nwclassUsed]:
                     snatFlag = 'True'
                     nwclassUsed = (re.search(r'(?<=\").+(?=\")', nwclassUsed)).group(0)
@@ -307,13 +311,15 @@ if __name__ == '__main__':
         srcnetProfiles = dict()
         for line in cfg_file:
             match list(filter(None, re.split('[\s/]+', line))):
-                case ['c','slb','nwclass', nwclass]:
+                case ['c','slb','nwclss', nwclass]:
                     srcnetProfiles[nwclass]=''
                 case ['net','subnet',subnet,mask,'include']:
                     if srcnetProfiles[nwclass] != '':      ## srcnet이 이미 있으면
                         srcnetProfiles[nwclass] += ';'
                     srcnetProfiles[nwclass] += IPv4Network(subnet+'/'+mask).with_prefixlen
-    print ('srcnetProfiles : ', srcnetProfiles)
+                case ['c','slb','gslb' as rest]|['c','sys',*rest]:
+                    break
+    #print ('srcnetProfiles : ', srcnetProfiles)
     ## settingsTable의 row에 PIP가 있으면 srcnet을 채워넣기.
     for row in settingsTable:
         if row[IDX_PIP_SRC] != '':
