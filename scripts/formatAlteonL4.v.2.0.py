@@ -26,12 +26,15 @@ import argparse
 import re              # regular expression
 import copy
 from datetime import date
+from ipaddress import IPv4Network
 
 ##### global variables ########################################################
 ## for group slb method settings processing
 DEFAULT_SLB_METHOD='leastConnections'
 IS_SLB_METHOD='metric'
 INIT_VALUE='-1'
+DEFAULT_STD_MODE='Active-Active'
+BACKUP_STD_MODE='Active-standby'
 
 ## before real svr numbers in a config file
 HOSTNAME_FINDER='/c/sys/ssnmp'
@@ -57,7 +60,8 @@ IDX_GP_SLB=0
 IDX_GP_RIDS=1
 IDX_GP_DESC=2
 IDX_GP_HC=3
-GP_LAST_IDX=IDX_GP_HC
+IDX_GP_STDMODE=4
+GP_LAST_IDX=IDX_GP_STDMODE
 
 IDX_VIP=0
 IDX_VPORT=1 + IDX_VIP
@@ -68,10 +72,12 @@ IDX_HEALTHCHECK=1 + IDX_SLB_METHOD
 IDX_VIRT=1 + IDX_HEALTHCHECK
 IDX_GROUP_NO=1 + IDX_VIRT
 IDX_RSVR_NO=1 + IDX_GROUP_NO
-IDX_NOTES=1 + IDX_RSVR_NO
-IDX_DESC=1 + IDX_NOTES
-LAST_IDX=IDX_DESC ## 맨 마지막 순서인 인덱스명
-OUTPUT_COLUMNS='Vip, Vport, Rip, Rports, SLB method, Health Check, Virt, Group No, RealSvr No, Misc., Description\n'
+IDX_PIP_SNAT=1 + IDX_RSVR_NO
+IDX_PIP_SRC=1 + IDX_PIP_SNAT
+IDX_DESC=1 + IDX_PIP_SRC
+IDX_STD_MODE=1 + IDX_DESC
+LAST_IDX=IDX_STD_MODE ## 맨 마지막 순서인 인덱스명
+OUTPUT_COLUMNS='Vip, Vport, Rip, Rports, SLB method, Health Check, Virt, Group No, RealSvr No, PIP SNAT Pool, PIP src, Description, Server Mode\n'
 #
 INIT_FLAG=-1
 FLAG_VIP=1
@@ -97,7 +103,7 @@ if __name__ == '__main__':
     with args.cfg_file as cfg_file:
         for line in cfg_file:
             match line.split():
-                case ['/*','Configuration','dump','taken',cfg_date]:
+                case ['/*','Configuration','dump','taken', *cfg_date]:
                     break
         for line in cfg_file:
             match line.split():
@@ -119,12 +125,13 @@ if __name__ == '__main__':
                     healthProfiles[hcID][IDX_HP_TYPE] = hc_proto
                 case ['dport', hc_dport]:
                     healthProfiles[hcID][IDX_HP_PORT] = hc_dport
-                case ['dest', 4, hc_dip]:
+                case ['dest', '4', hc_dip]:
                     healthProfiles[hcID][IDX_HP_IP] = hc_dip
                 case ['logexp', hc_exp]:
                     healthProfiles[hcID][IDX_HP_LOGEXP] = (re.search(r'(?<=\").+(?=\")', hc_exp)).group(0)
                 case ['/c/slb']:  ## health check 구문을 빠져나가면
                     break         ## for loop을 중단하여 cfg_file을 그만 읽는다.
+        #print ('health check profiles : ', healthProfiles)
         ######### real  : [real No., rip, rports, description] ##################
         realProfiles = dict()
         realNo = ''
@@ -146,8 +153,8 @@ if __name__ == '__main__':
                     realProfiles[realNo][IDX_RP_IP] = realIP
                 case ['name', realDesc]:
                     realProfiles[realNo][IDX_RP_DESC] = realDesc
-                case ['health' hc_used]:
-                    realProfiles[realNo][IDX_RP_HC] = hc_used
+                case ['health', hcName]:
+                    realProfiles[realNo][IDX_RP_HC] = hcName
                     if healthProfiles[realProfiles[realNo][IDX_RP_HC]][IDX_HP_TYPE] == 'LOGEXP':
                         for hcProfile in healthProfiles[realProfiles[realNo][IDX_RP_HC]][IDX_HP_LOGEXP].split("&"):
                             try:
@@ -166,11 +173,11 @@ if __name__ == '__main__':
                     groupProfiles[groupNo]=["" for i in range(GP_LAST_IDX+1)]
                     in_group_sec=FLAG_GROUP  ## to set a flag when in the group settings section
                     break
-        print("real dict : ")
-        print("{:<8} {:<20} {:<12} {:<30} {:<20} {:<40}".format('rNo', 'rIP', 'rPorts', 'Desc', 'HC label', 'HC ports'))
-        for realSvrNo, realSvr in realProfiles.items():
-            rip, rPorts, desc, hc_label, hc_ports = realSvr
-            print("{:<8} {:<20} {:<12} {:<30} {:<20} {:<40}".format(realSvrNo, rip, rPorts, desc, hc_label, hc_ports))
+        #print("real dict : ")
+        #print("{:<8} {:<20} {:<12} {:<30} {:<20} {:<40}".format('rNo', 'rIP', 'rPorts', 'Desc', 'HC label', 'HC ports'))
+        #for realSvrNo, realSvr in realProfiles.items():
+        #    rip, rPorts, desc, hc_label, hc_ports = realSvr
+        #    print("{:<8} {:<20} {:<12} {:<30} {:<20} {:<40}".format(realSvrNo, rip, rPorts, desc, hc_label, hc_ports))
         ######### group : [group No., slb method, [real No.s'], description ] ###
         if in_group_sec!=FLAG_GROUP:
             for line in cfg_file:
@@ -181,15 +188,16 @@ if __name__ == '__main__':
         settingsTable = []
         in_virt_sec=INIT_FLAG
         for line in cfg_file:
-            match line.split():
-                case ['/c/slb/group', groupNo]:
+            match list(filter(None, re.split('[\s/]+', line))):
+                case ['c','slb','group', groupNo]:
                     groupProfiles[groupNo]=["" for i in range(GP_LAST_IDX+1)]
-                case ['add', real_active]:
+                    groupProfiles[groupNo][IDX_GP_STDMODE]=DEFAULT_STD_MODE ## active-active or active-standby for servers
+                case ['add', realActive]:
                     if groupProfiles[groupNo][IDX_GP_SLB] == '':
                         groupProfiles[groupNo][IDX_GP_SLB] = DEFAULT_SLB_METHOD ## 'metric' 구문이 없는 경우, default 값을 사용
                     if groupProfiles[groupNo][IDX_GP_RIDS] == '':      ## real rid에 값이 없으면
                         groupProfiles[groupNo][IDX_GP_RIDS] = []
-                    groupProfiles[groupNo][IDX_GP_RIDS].append(real_active)
+                    groupProfiles[groupNo][IDX_GP_RIDS].append(realActive)
                 case ['metric', slb_method]:
                     groupProfiles[groupNo][IDX_GP_SLB] = slb_method
                 case ['name', groupDesc]:
@@ -197,21 +205,24 @@ if __name__ == '__main__':
                 case ['backup', group_backup]:
                     if groupProfiles[groupNo][IDX_GP_SLB] == '':
                         groupProfiles[groupNo][IDX_GP_SLB] = DEFAULT_SLB_METHOD
+                    if groupProfiles[groupNo][IDX_GP_RIDS] == '':      ## real rid에 값이 없으면
+                        groupProfiles[groupNo][IDX_GP_RIDS] = []
                     groupProfiles[groupNo][IDX_GP_RIDS].append(group_backup)
+                    groupProfiles[groupNo][IDX_GP_STDMODE]=BACKUP_STD_MODE
                 case ['health', groupHc]:
                     groupProfiles[groupNo][IDX_GP_HC] = groupHc
-                case ['/c/slb/', obj]:
-                    if not re.search(r'/group', line):
-                        if re.search(r'/c/slb/virt\s[\d]+', line):
-                            settingsTable.append(["" for i in range(LAST_IDX+1)])
-                            settingsTable[-1][IDX_VIRT] = (re.search(r'(?<=/c/slb/virt\s)[\d]+', line)).group(0)
-                            in_virt_sec=FLAG_VIRT
-                        break
-        print("Group dict : ")
-        print("{:<8} {:<20} {:<30} {:<30} {:<40}".format('gNo', 'slb', 'rNo', 'Desc', 'HC'))
-        for gNo, group in groupProfiles.items():
-            slb, rno, desc, hc = group
-            print("{:<8} {:<20} {:<30} {:<30} {:<40}".format(gNo, slb, ';'.join(rno), desc, hc))
+                case ['c',*rest]:
+                    if re.search(r'/c/slb/virt\s[\d]+', line):
+                        settingsTable.append(["" for i in range(LAST_IDX+1)])
+                        virtNo = (re.search(r'(?<=/c/slb/virt\s)[\d]+', line)).group(0)
+                        settingsTable[-1][IDX_VIRT] = virtNo
+                        in_virt_sec=FLAG_VIRT
+                    break
+        #print("Group dict : ")
+        #print("{:<8} {:<20} {:<30} {:<30} {:<40}".format('gNo', 'slb', 'rNo', 'Desc', 'HC'))
+        #for gNo, group in groupProfiles.items():
+        #    slb, rno, desc, hc, stdmode = group
+        #    print("{:<8} {:<20} {:<30} {:<30} {:<40}".format(gNo, slb, ';'.join(rno), desc, hc))
         ######### virt  : [virt No., vip, vport, group No., description ] #######
         prevFlag = INIT_FLAG
         vip = ''
@@ -219,53 +230,94 @@ if __name__ == '__main__':
             for line in cfg_file:
                 if re.search(r'/c/slb/virt\s[\d]+', line):
                     settingsTable.append(["" for i in range(LAST_IDX+1)])
-                    settingsTable[-1][IDX_VIRT] = (re.search(r'(?<=/c/slb/virt\s)[\d]+', line)).group(0)
+                    virtNo = (re.search(r'(?<=/c/slb/virt\s)[\d]+', line)).group(0)
+                    settingsTable[-1][IDX_VIRT] = virtNo
                     break
         ## for pip [(virt No., vport): [srcnet No., pip nat, src ip]]
         ## before writing into the output file, for loop settingsTable to fill in the PIP info
+        snatFlag = 'False'
         for line in cfg_file:
-            if re.search(r'/c/slb/virt\s[\d]+', line):
-                if not re.search(r'/pip$', line):
+            match list(filter(None, re.split('[\s/]+', line))):
+                case ['c','slb','virt',virtNo]:
+                    snatFlag = 'False'
                     settingsTable.append(["" for i in range(LAST_IDX+1)])
-                    settingsTable[-1][IDX_VIRT] = (re.search(r'(?<=/c/slb/virt\s)[\d]+', line)).group(0)
-                    if re.search(r'service\s[\d]+', line):
-                        settingsTable[-1][IDX_VPORT] = (re.search(r'(?<=service\s)[\d]+', line)).group(0)
-                        settingsTable[-1][IDX_VIP] = vip
-                else:
+                    settingsTable[-1][IDX_VIRT] = virtNo
+                case ['c','slb','virt',virtNo,'service',vPort,serviceName]:
+                    settingsTable.append(["" for i in range(LAST_IDX+1)])
+                    settingsTable[-1][IDX_VIRT] = virtNo
+                    settingsTable[-1][IDX_VPORT] = vPort
+                    settingsTable[-1][IDX_VIP] = vip
+                case ['c','slb','virt',virtNo,'service',vPort,serviceName,'pip']:
                     prevFlag = FLAG_PIP
-            elif re.search(r'group\s[\d]+', line):
-                settingsTable[-1][IDX_GROUP_NO] = (re.search(r'(?<=group\s)[\d]+', line)).group(0)
-            elif re.search(r'rport\s[\d]+', line):
-                realSvrs = groupProfiles[settingsTable[-1][IDX_GROUP_NO]][IDX_GP_RIDS]
-                for realNo in realSvrs:
-                    if settingsTable[-1][IDX_RSVR_NO] != '':                     ## real server no. 값이 이미 있으면
-                        settingsTable.append(copy.deepcopy(settingsTable[-1]))   ## 테이블 마지막 레코드를 복붙해서 새로 row를 만들자. 단, deepcopy() 를 이용하지 않으면 call by reference 로 복사하여 새로운 것을 편집하면 예전 것도 변경됨.
-                    if re.search(r'g[\d]+', realNo):
-                        groupUsed = (re.search(r'(?<=g)[\d]+', realNo)).group(0)
-                        realNo = groupProfiles[groupUsed][IDX_GP_RIDS]
-                        settingsTable[-1][IDX_NOTES] += ';backup'
-                    settingsTable[-1][IDX_RSVR_NO] = realNo
-                    if groupProfiles[settingsTable[-1][IDX_GROUP_NO]][IDX_GP_SLB] == '':
-                        settingsTable[-1][IDX_SLB_METHOD] = DEFAULT_SLB_METHOD ## 'metric' 구문이 없는 경우, default 값을 사용
-                    settingsTable[-1][IDX_SLB_METHOD] = groupProfiles[settingsTable[-1][IDX_GROUP_NO]][IDX_GP_SLB]
-                    settingsTable[-1][IDX_HEALTHCHECK] = realProfiles[settingsTable[-1][IDX_RSVR_NO]][IDX_RP_HC_IP_PORT]
-                    settingsTable[-1][IDX_DESC] = groupProfiles[settingsTable[-1][IDX_GROUP_NO]][IDX_GP_DESC]
-                    settingsTable[-1][IDX_RIP] = realProfiles[settingsTable[-1][IDX_RSVR_NO]][IDX_RP_IP]
-                    settingsTable[-1][IDX_RPORTS] = (re.search(r'(?<=rport\s)[\d]+', line)).group(0)
-                    if settingsTable[-1][IDX_RPORTS] == '0':   ## rport 0, 즉 multi port인 경우
-                        settingsTable[-1][IDX_RPORTS] = realProfiles[settingsTable[-1][IDX_RSVR_NO]][IDX_RP_PORTS]
-            elif re.search(r'vip\s[\d]+\.[\d]+\.[\d]+\.[\d]+', line):
-                settingsTable[-1][IDX_VIP] = (re.search(r'(?<=vip\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0)
-                vip = settingsTable[-1][IDX_VIP]
-            elif re.search(r'vname\s\"', line):
-                settingsTable[-1][IDX_DESC] = (re.search(r'(?<=\").+(?=\")', line)).group(0)
-            elif re.search(r'addr\s', line):
-                if prevFlag == FLAG_PIP:
-                    settingsTable[-1][IDX_NOTES] = 'PIP NAT: ' + (re.search(r'(?<=v4\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0)
-            elif (re.search(r'/c/slb/', line) or re.search(r'/c/l3/', line)) and not re.search(r'virt', line):
-                break
-            #print("settingsTable: ", settingsTable[idx] )
-
+                case ['group', groupUsed]:
+                    settingsTable[-1][IDX_GROUP_NO] = groupUsed
+                case ['rport', rport] if snatFlag == 'False': ### turn virtual config into a row of the settingsTable
+                    realSvrs = groupProfiles[settingsTable[-1][IDX_GROUP_NO]][IDX_GP_RIDS]
+                    for realNo in realSvrs:
+                        if settingsTable[-1][IDX_RSVR_NO] != '':                     ## real server no. 값이 이미 있으면
+                            settingsTable.append(copy.deepcopy(settingsTable[-1]))   ## 테이블 마지막 레코드를 복붙해서 새로 row를 만들자. 단, deepcopy() 를 이용하지 않으면 call by reference 로 복사하여 새로운 것을 편집하면 예전 것도 변경됨.
+                        settingsTable[-1][IDX_STD_MODE] = 'active'
+                        if re.search(r'g[\d]+', realNo):
+                            groupInGrp = (re.search(r'(?<=g)[\d]+', realNo)).group(0)
+                            realNo = groupProfiles[groupInGrp][IDX_GP_RIDS][0] ### backup 용 real server가 여럿이면 여기 로직 변경해야 함.
+                            settingsTable[-1][IDX_STD_MODE] = 'backup'
+                        settingsTable[-1][IDX_RSVR_NO] = realNo
+                        if groupProfiles[settingsTable[-1][IDX_GROUP_NO]][IDX_GP_SLB] == '':
+                            settingsTable[-1][IDX_SLB_METHOD] = DEFAULT_SLB_METHOD ## 'metric' 구문이 없는 경우, default 값을 사용
+                        settingsTable[-1][IDX_SLB_METHOD] = groupProfiles[settingsTable[-1][IDX_GROUP_NO]][IDX_GP_SLB]
+                        settingsTable[-1][IDX_HEALTHCHECK] = realProfiles[settingsTable[-1][IDX_RSVR_NO]][IDX_RP_HC_IP_PORT]
+                        settingsTable[-1][IDX_DESC] = groupProfiles[settingsTable[-1][IDX_GROUP_NO]][IDX_GP_DESC]
+                        settingsTable[-1][IDX_RIP] = realProfiles[settingsTable[-1][IDX_RSVR_NO]][IDX_RP_IP]
+                        settingsTable[-1][IDX_RPORTS] = rport
+                        if settingsTable[-1][IDX_RPORTS] == '0':   ## rport 0, 즉 multi port인 경우
+                            settingsTable[-1][IDX_RPORTS] = realProfiles[settingsTable[-1][IDX_RSVR_NO]][IDX_RP_PORTS]
+                case ['vip',vip]:
+                    settingsTable[-1][IDX_VIP] = (re.search(r'(?<=vip\s)[\d]+\.[\d]+\.[\d]+\.[\d]+', line)).group(0)
+                    vip = settingsTable[-1][IDX_VIP]
+                case ['vname',vname]:
+                    settingsTable[-1][IDX_DESC] = (re.search(r'(?<=\").+(?=\")', vname)).group(0)
+                case ['srcnet', nwclassUsed]:
+                    snatFlag = 'True'
+                    nwclassUsed = (re.search(r'(?<=\").+(?=\")', nwclassUsed)).group(0)
+                    settingsTable[-1][IDX_PIP_SRC] = nwclassUsed
+                case ['addr','v4',snat,snatMask,'persist',persisStatus]:
+                    realSvrs = groupProfiles[settingsTable[-1][IDX_GROUP_NO]][IDX_GP_RIDS] #### This is repeated in rport case
+                    for realNo in realSvrs:
+                        if settingsTable[-1][IDX_RSVR_NO] != '':
+                            settingsTable.append(copy.deepcopy(settingsTable[-1]))
+                        settingsTable[-1][IDX_STD_MODE] = 'active'
+                        if re.search(r'g[\d]+', realNo):
+                            groupInGrp = (re.search(r'(?<=g)[\d]+', realNo)).group(0)
+                            realNo = groupProfiles[groupInGrp][IDX_GP_RIDS][0]
+                            settingsTable[-1][IDX_STD_MODE] = 'backup'
+                        settingsTable[-1][IDX_RSVR_NO] = realNo
+                        if groupProfiles[settingsTable[-1][IDX_GROUP_NO]][IDX_GP_SLB] == '':
+                            settingsTable[-1][IDX_SLB_METHOD] = DEFAULT_SLB_METHOD
+                        settingsTable[-1][IDX_SLB_METHOD] = groupProfiles[settingsTable[-1][IDX_GROUP_NO]][IDX_GP_SLB]
+                        settingsTable[-1][IDX_HEALTHCHECK] = realProfiles[settingsTable[-1][IDX_RSVR_NO]][IDX_RP_HC_IP_PORT]
+                        settingsTable[-1][IDX_DESC] = groupProfiles[settingsTable[-1][IDX_GROUP_NO]][IDX_GP_DESC]
+                        settingsTable[-1][IDX_RIP] = realProfiles[settingsTable[-1][IDX_RSVR_NO]][IDX_RP_IP]
+                        settingsTable[-1][IDX_RPORTS] = rport
+                        if settingsTable[-1][IDX_RPORTS] == '0':
+                            settingsTable[-1][IDX_RPORTS] = realProfiles[settingsTable[-1][IDX_RSVR_NO]][IDX_RP_PORTS]
+                        settingsTable[-1][IDX_PIP_SNAT] = IPv4Network(snat+'/'+snatMask).with_prefixlen #### except this line (이 라인 전까지 function으로 만들기.)
+                        settingsTable[-1][IDX_PIP_SRC] = nwclassUsed
+                case ['c','slb',*rest]|['c','l3',*rest]:
+                    break
+        srcnetProfiles = dict()
+        for line in cfg_file:
+            match list(filter(None, re.split('[\s/]+', line))):
+                case ['c','slb','nwclass', nwclass]:
+                    srcnetProfiles[nwclass]=''
+                case ['net','subnet',subnet,mask,'include']:
+                    if srcnetProfiles[nwclass] != '':      ## srcnet이 이미 있으면
+                        srcnetProfiles[nwclass] += ';'
+                    srcnetProfiles[nwclass] += IPv4Network(subnet+'/'+mask).with_prefixlen
+    print ('srcnetProfiles : ', srcnetProfiles)
+    ## settingsTable의 row에 PIP가 있으면 srcnet을 채워넣기.
+    for row in settingsTable:
+        if row[IDX_PIP_SRC] != '':
+            row[IDX_PIP_SRC] = srcnetProfiles[row[IDX_PIP_SRC]]
     output_file=hostname + '-cfg-' + date.today().strftime('%Y%m%d') + '.csv'  # 결과 파일 이름
     with open(output_file, 'w') as out_file:
         out_file.write(OUTPUT_COLUMNS)
