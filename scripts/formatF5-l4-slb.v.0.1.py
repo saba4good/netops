@@ -24,26 +24,25 @@ from datetime import date
 DEFAULT_SLB_METHOD='round robin'
 INIT_VALUE='-1'
 
-## before real svr numbers in a config file
-HOSTNAME_FINDER='sys global-settings'
-FLAG_HOSTNAME=False
-START_OF_SETTINGS='ltm global-settings'
-START_OF_REALS='/c/slb/real'
-START_OF_GROUPS='/c/slb/group'
+FLAG_PERSIS=1
+FLAG_POOL=2
+FLAG_VIRT=3
+FLAG_VR_PERSIS=4
+FLAG_HOSTNAME=5
+IDX_PL_SLB=0
+IDX_PL_RIPS=1
+IDX_PL_STATUS=3
+PL_LAST_IDX=IDX_PL_STATUS
 
 IDX_VIP=0
-IDX_VPORT=1 + IDX_VIP
-IDX_RIP=1 + IDX_VPORT
-IDX_RPORTS=1 + IDX_RIP
-IDX_SLB_METHOD=1 + IDX_RPORTS
-IDX_HEALTHCHECK=1 + IDX_SLB_METHOD
-IDX_VIRT=1 + IDX_HEALTHCHECK
-IDX_GROUP_NO=1 + IDX_VIRT
-IDX_RSVR_NO=1 + IDX_GROUP_NO
-IDX_NOTES=1 + IDX_RSVR_NO
-IDX_DESC=1 + IDX_NOTES
-LAST_IDX=IDX_DESC ## 맨 마지막 순서인 인덱스명
-OUTPUT_COLUMNS='Vip, Vport, Rip, Rports, SLB method, Health Check, Virt, Group No, RealSvr No, Misc., Description'
+IDX_VPORT=1+IDX_VIP
+IDX_RIP=1+IDX_VPORT
+IDX_SLB_METHOD=1+IDX_RIP
+IDX_PERSIS=1+IDX_SLB_METHOD
+IDX_SVR_STATUS=1+IDX_PERSIS
+IDX_VIRT=1+IDX_SVR_STATUS
+LAST_IDX=IDX_VIRT ## 맨 마지막 순서인 인덱스명
+OUTPUT_COLUMNS='Vip, Vport, Rip, SLB method, Persis. Timeout, Status, Virt'
 #
 if __name__ == '__main__':
     # 이 프로그램을 실행할 때, 받아들일 arguments 1개
@@ -52,13 +51,69 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     #########################################################################
-    ######### Config file processing ########################################
-    ######### health check : [profile_id, ip, ports, type, logexp] ##########
-    ######### real  : [real No., rip, rports, description] ##################
-    ######### group : [group No., slb method, [real No.s'], description ] ###
-    ######### virt  : [virt No., vip, vport, group No., description ] #######
+    ####### monitor - node - persistence - pool - fastl4 DSR - virtual ######
+    ## monitor : vip, vport
+    ## node : rip
+    ## persistence : persistence timeout
+    ## pool : slb_method, rip, (rport), status, (monitor)
+    ## fastl4 DSR : idle timeout
+    ## virtual : vip, vport, persistence, pool, fastl4, dsr
+    ################ persistence - pool - virtual ###########################
     with args.cfg_file as cfg_file:
+        which_section = INIT_VALUE
+        persisProfiles = dict()
+        poolProfiles = dict()
+        settingsTable = []
         for line in cfg_file:
+            match line.split():
+                case ['ltm', 'persistence', persis_method, persis_id, '{']:
+                    which_section = FLAG_PERSIS
+                case ['ltm', 'pool', pool_id, '{']:
+                    which_section = FLAG_POOL
+                    poolProfiles[pool_id]=["" for i in range(PL_LAST_IDX+1)]
+                case ['ltm', 'virtual', virt_id, '{']:
+                    which_section = FLAG_VIRT
+                    settingsTable.append(["" for i in range(LAST_IDX+1)])
+                    settingsTable[-1][IDX_VIRT] = virt_id
+                case ['address', ip]:
+                    if which_section == FLAG_POOL:
+                        if poolProfiles[pool_id][IDX_PL_RIPS] != '':
+                            poolProfiles[pool_id][IDX_PL_RIPS] += ';'
+                        poolProfiles[pool_id][IDX_PL_RIPS] += ip
+                case ['state', status]:
+                    if which_section == FLAG_POOL:
+                        poolProfiles[pool_id][IDX_PL_RIPS] += ':' + status
+                case ['destination', ip_port]:
+                    if which_section == FLAG_VIRT:
+                        settingsTable[-1][IDX_VIP] = (re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+', ip_port)).group(0)
+                        settingsTable[-1][IDX_VPORT] = (re.search(r'(?<=:)[\w]+', ip_port)).group(0)
+                case ['pool', pool_id_used]:
+                    if which_section == FLAG_VIRT:
+                        settingsTable[-1][IDX_SLB_METHOD] = poolProfiles[pool_id_used][IDX_PL_SLB]
+                        for rip_state in poolProfiles[pool_id_used][IDX_PL_RIPS].split(';'):
+                            if settingsTable[-1][IDX_RIP] != '':
+                                settingsTable.append(copy.deepcopy(settingsTable[-1]))
+                            settingsTable[-1][IDX_RIP] = (re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+', rip_state)).group(0)
+                            settingsTable[-1][IDX_SVR_STATUS] = (re.search(r'(?<=:)[\w]+', rip_state)).group(0)
+                case ['persist', '{']:
+                    if which_section == FLAG_VIRT:
+                        which_section = FLAG_VR_PERSIS
+                case [opening, '{']:
+                    if which_section == FLAG_VR_PERSIS:
+                        which_section = FLAG_VIRT
+                        settingsTable[-1][IDX_PERSIS] = persisProfiles[opening]
+                case ['load-balancing-mode', slb_method]:
+                    poolProfiles[pool_id][IDX_PL_SLB] = slb_method
+                case ['timeout', time]:
+                    if which_section == FLAG_PERSIS:
+                        persisProfiles[persis_id] = time
+                case ['}']:
+                    if re.search(r'^}', line):
+                        which_section =  INIT_VALUE
+                case ['sys', 'global-settings', '{']:
+                    which_section = FLAG_HOSTNAME
+                case ['hostname', hostname_domain]:
+                    hostname = hostname_domain
 
     output_file=hostname + '-cfg-' + date.today().strftime('%Y%m%d') + '.csv'  # 결과 파일 이름
     with open(output_file, 'w') as out_file:

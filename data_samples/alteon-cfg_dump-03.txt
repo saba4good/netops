@@ -1,3 +1,4 @@
+/* Configuration dump taken 12:00:00 Sat Oct 14, 2017
 /c/sys/access/mgmt/add 172.16.0.200 255.255.255.255 ssh|telnet|snmp
 /c/sys/access/port/add 1
 /c/sys/access/port/add 2
@@ -210,6 +211,26 @@
 	add 25
   add 26
   name "club_web;8090;20220617"
+/c/slb/group 30
+	ipver v4
+	metric hash
+  backup g34
+	add 24
+  name "act-std;28080;20220617"
+/c/slb/group 31
+	ipver v4
+	rmetric leastconns
+	add 24
+  backup g35
+  name "act-std;28090;20220617"
+/c/slb/group 34
+	ipver v4
+	add 26
+  name "act-std;28080;20220617"
+/c/slb/group 35
+	ipver v4
+	add 25
+  name "act-std;28090;20220617"
 /c/slb/port "1"
   client ena
   server ena
@@ -266,6 +287,19 @@
 /c/slb/virt 23/service 8090 basic-slb
 	group 24
 	rport 8090
+	mirror ena
+/c/slb/virt 24
+	ena
+	ipver v4
+	vip 172.16.10.24
+	vname "active-standby;20220617"
+/c/slb/virt 24/service 28080 basic-slb
+	group 30
+	rport 28080
+	mirror ena
+/c/slb/virt 24/service 28090 basic-slb
+	group 31
+	rport 28090
 	mirror ena
 /c/slb/virt 124
 	ena
