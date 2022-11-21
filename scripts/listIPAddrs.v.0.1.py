@@ -49,7 +49,7 @@ class CmdLine:
     def get_args(self):
         return self.args
 
-def snmp_get_oid(a_device, oid=OID_SYS_NAME, display_errors=False):
+def snmp_getnext(a_device, oid=OID_SYS_NAME, display_errors=False):
     '''
     Retrieve the given OID
     Default OID is MIB2, sysDescr
@@ -81,7 +81,7 @@ def snmp_get_oid(a_device, oid=OID_SYS_NAME, display_errors=False):
         return None
 def snmp_get_ip(a_device, oid=OID_INT_IP, display_errors=False):
     ipSet = set()
-    snmpData = snmp_get_oid(a_device, oid)
+    snmpData = snmp_getnext(a_device, oid)
     for row in snmpData:
         ip = (re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+(?=\s)', str(row[0]))).group(0)
         try:
@@ -109,10 +109,10 @@ if __name__ == '__main__':
         aNWDevice = (deviceIp, cmdArgs.CommunityString, SNMP_PORT)
         devTable.append(["" for i in range(LAST_INDEX+1)])
         #Host Name, Device IP, Interface IP, HSRP IP, VRRP IP, Svr VIP
-        hostName = (re.search(r'[\w]+(?=\.)', snmp_get_oid(aNWDevice)[0])).group(0)
+        hostName = (re.search(r'[\w]+(?=\.)', snmp_getnext(aNWDevice)[0])).group(0)
         devTable[-1]=[hostName, deviceIp, snmp_get_ip(aNWDevice), snmp_get_ip(aNWDevice, OID_HSRP_IP), snmp_get_ip(aNWDevice, OID_VRRP_IP), snmp_get_ip(aNWDevice, OID_SVR_VIP)]
         #devTable[-1][IDX_HOST_IP] = deviceIp
-        #devTable[-1][IDX_HOST] = snmp_get_oid(aNWDevice)
+        #devTable[-1][IDX_HOST] = snmp_getnext(aNWDevice)
         #devTable[-1][IDX_INT_IP] = snmp_get_ip(aNWDevice)
         #devTable[-1][IDX_HSRP_IP] = snmp_get_ip(aNWDevice, OID_HSRP_IP)
     print ("Table : ", devTable)
@@ -125,7 +125,7 @@ if __name__ == '__main__':
             aNWDevice = (deviceIp, cmdArgs.CommunityString, SNMP_PORT)
             #a IP, Host Name, Host IP, Description
             #a IP : Interface IP, HSRP IP, VRRP IP, Svr VIP
-            hostName = (re.search(r'[\w]+(?=\.)', str(snmp_get_oid(aNWDevice)[0]))).group(0)
+            hostName = (re.search(r'(?<=\=\s)[\w\-\_]+(?=\.)', str(snmp_getnext(aNWDevice)[0][0]))).group(0)
             intIpSet = snmp_get_ip(aNWDevice)
             for ip in intIpSet:
                 out_file.write("%s, %s, %s, Interface IP\n" % (ip, hostName, deviceIp))
