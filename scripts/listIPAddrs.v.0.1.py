@@ -125,16 +125,16 @@ if __name__ == '__main__':
             aNWDevice = (deviceIp, cmdArgs.CommunityString, SNMP_PORT)
             #a IP, Host Name, Host IP, Description
             #a IP : Interface IP, HSRP IP, VRRP IP, Svr VIP
-            hostName = (re.search(r'[\w]+(?=\.)', snmp_get_oid(aNWDevice)[0])).group(0)
+            hostName = (re.search(r'[\w]+(?=\.)', str(snmp_get_oid(aNWDevice)[0]))).group(0)
             intIpSet = snmp_get_ip(aNWDevice)
             for ip in intIpSet:
-                out_file.write("%s, %s, %s, Interface IP\n", ip, hostName, deviceIp)
+                out_file.write("%s, %s, %s, Interface IP\n" % (ip, hostName, deviceIp))
             hsrpIpSet = snmp_get_ip(aNWDevice, OID_HSRP_IP)
             for ip in hsrpIpSet:
-                out_file.write("%s, %s, %s, HSRP IP\n", ip, hostName, deviceIp)
+                out_file.write("%s, %s, %s, HSRP IP\n" % (ip, hostName, deviceIp))
             vrrpIpSet = snmp_get_ip(aNWDevice, OID_VRRP_IP)
             for ip in vrrpIpSet:
-                out_file.write("%s, %s, %s, VRRP IP\n", ip, hostName, deviceIp)
+                out_file.write("%s, %s, %s, VRRP IP\n" % (ip, hostName, deviceIp))
             vipSet = snmp_get_ip(aNWDevice, OID_SVR_VIP)
             for ip in vipSet:
-                out_file.write("%s, %s, %s, Sever VIP\n", ip, hostName, deviceIp)
+                out_file.write("%s, %s, %s, Sever VIP\n" % (ip, hostName, deviceIp))
