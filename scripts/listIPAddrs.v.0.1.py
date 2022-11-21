@@ -18,11 +18,16 @@ from pysnmp.entity.rfc3413.oneliner import cmdgen
 #from pysnmp.proto.rfc1902 import Integer, IpAddress, OctetString
 
 ##### global variables ########################################################
-OUTPUT_COLUMNS='Host Name, Device IP, Interface IP, HSRP IP, VRRP IP, Svr VIP\n'
+#OUTPUT_COLUMNS='Host Name, Device IP, Interface IP, HSRP IP, VRRP IP, Svr VIP\n'
+OUTPUT_COLUMNS='IP, Host Name, Host IP, Description\n'
 SNMP_COMMUNITY='change_this_value_to_the_community_string'
 SNMP_PORT=161
+OID_SYS_DESC='.1.3.6.1.2.1.1.1'
+OID_SYS_NAME='.1.3.6.1.2.1.1.5'
 OID_INT_IP='.1.3.6.1.2.1.4.20.1.2'
 OID_HSRP_IP='.1.3.6.1.4.1.9.9.106.1.2.1.1.11'
+OID_VRRP_IP=''
+OID_SVR_VIP=''
 
 IDX_HOST=0
 IDX_HOST_IP=1+IDX_HOST
@@ -44,7 +49,7 @@ class CmdLine:
     def get_args(self):
         return self.args
 
-def snmp_get_oid(a_device, oid='.1.3.6.1.2.1.1.1.0', display_errors=False):
+def snmp_get_oid(a_device, oid=OID_SYS_NAME, display_errors=False):
     '''
     Retrieve the given OID
     Default OID is MIB2, sysDescr
@@ -74,6 +79,16 @@ def snmp_get_oid(a_device, oid='.1.3.6.1.2.1.1.1.0', display_errors=False):
             print('    %-16s %-60s' % ('error_status', error_status))
             print('    %-16s %-60s' % ('error_index', error_index))
         return None
+def snmp_get_ip(a_device, oid=OID_INT_IP, display_errors=False):
+    ipSet = set()
+    snmpData = snmp_get_oid(a_device, oid)
+    for row in snmpData:
+        ip = (re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+(?=\s)', str(row[0]))).group(0)
+        try:
+            ipSet.add(format(ipaddress.ip_address(ip)))
+        except ValueError:
+            pass
+    return ipSet
 
 if __name__ == '__main__':
     cmdArgs = CmdLine().get_args()
@@ -88,30 +103,38 @@ if __name__ == '__main__':
             except ValueError:
                 pass
     ######### Build a device list ###########################################
+    '''
     devTable = []
     for deviceIp in deviceIpSet:
+        aNWDevice = (deviceIp, cmdArgs.CommunityString, SNMP_PORT)
         devTable.append(["" for i in range(LAST_INDEX+1)])
-        devTable[-1][IDX_HOST_IP] = deviceIp
-        devTable[-1][IDX_HOST] = snmp_get_oid((deviceIp, cmdArgs.CommunityString, SNMP_PORT))
-        snmpData = snmp_get_oid((deviceIp, cmdArgs.CommunityString, SNMP_PORT), OID_INT_IP)
-        print("SNMP data : ", snmpData)
-        #devTable[-1][IDX_INT_IP] = 
-        #print ("host name : ", devTable[-1][IDX_HOST])
-        
+        #Host Name, Device IP, Interface IP, HSRP IP, VRRP IP, Svr VIP
+        hostName = (re.search(r'[\w]+(?=\.)', snmp_get_oid(aNWDevice)[0])).group(0)
+        devTable[-1]=[hostName, deviceIp, snmp_get_ip(aNWDevice), snmp_get_ip(aNWDevice, OID_HSRP_IP), snmp_get_ip(aNWDevice, OID_VRRP_IP), snmp_get_ip(aNWDevice, OID_SVR_VIP)]
+        #devTable[-1][IDX_HOST_IP] = deviceIp
+        #devTable[-1][IDX_HOST] = snmp_get_oid(aNWDevice)
+        #devTable[-1][IDX_INT_IP] = snmp_get_ip(aNWDevice)
+        #devTable[-1][IDX_HSRP_IP] = snmp_get_ip(aNWDevice, OID_HSRP_IP)
+    print ("Table : ", devTable)
     '''
-    #print ('srcnetProfiles : ', srcnetProfiles)
-    ## settingsTable의 row에 PIP가 있으면 srcnet을 채워넣기.
-    for row in settingsTable:
-        if row[IDX_PIP_SRC] != '':
-            row[IDX_PIP_SRC] = srcnetProfiles[row[IDX_PIP_SRC]]
-    output_file=hostname + '-cfg-' + date.today().strftime('%Y%m%d') + '.csv'  # 결과 파일 이름
+    output_file='device_ip-' + date.today().strftime('%Y%m%d') + '.csv'  # 결과 파일 이름
     with open(output_file, 'w') as out_file:
         out_file.write(OUTPUT_COLUMNS)
-        for row in settingsTable:
-            for j, value in enumerate(row):
-                out_file.write(value)
-                if j != LAST_IDX:
-                    out_file.write(", ")
-                else:
-                    out_file.write("\n")
-    '''
+        devTable = []
+        for deviceIp in deviceIpSet:
+            aNWDevice = (deviceIp, cmdArgs.CommunityString, SNMP_PORT)
+            #a IP, Host Name, Host IP, Description
+            #a IP : Interface IP, HSRP IP, VRRP IP, Svr VIP
+            hostName = (re.search(r'[\w]+(?=\.)', snmp_get_oid(aNWDevice)[0])).group(0)
+            intIpSet = snmp_get_ip(aNWDevice)
+            for ip in intIpSet:
+                out_file.write("%s, %s, %s, Interface IP\n", ip, hostName, deviceIp)
+            hsrpIpSet = snmp_get_ip(aNWDevice, OID_HSRP_IP)
+            for ip in hsrpIpSet:
+                out_file.write("%s, %s, %s, HSRP IP\n", ip, hostName, deviceIp)
+            vrrpIpSet = snmp_get_ip(aNWDevice, OID_VRRP_IP)
+            for ip in vrrpIpSet:
+                out_file.write("%s, %s, %s, VRRP IP\n", ip, hostName, deviceIp)
+            vipSet = snmp_get_ip(aNWDevice, OID_SVR_VIP)
+            for ip in vipSet:
+                out_file.write("%s, %s, %s, Sever VIP\n", ip, hostName, deviceIp)
