@@ -26,7 +26,8 @@ OID_SYS_DESC='.1.3.6.1.2.1.1.1'
 OID_SYS_NAME='.1.3.6.1.2.1.1.5'
 OID_INT_IP='.1.3.6.1.2.1.4.20.1.2'
 OID_HSRP_IP='.1.3.6.1.4.1.9.9.106.1.2.1.1.11'
-OID_VRRP_IP=''
+OID_F5_VIP='.1.3.6.1.4.1.3375.2.2.10.1.2.1.3'
+OID_VRRP_IP='.1.3.6.1.4.1.1872.2.1.15.2.1.3'
 OID_SVR_VIP=''
 
 IDX_HOST=0
@@ -37,7 +38,6 @@ IDX_VRRP_IP=1+IDX_HSRP_IP
 IDX_SVR_VIP=1+IDX_VRRP_IP
 LAST_INDEX=IDX_SVR_VIP
 #INIT_FLAG=-1
-#FLAG_=1
 
 class CmdLine:
     def __init__(self):
@@ -125,16 +125,26 @@ if __name__ == '__main__':
             aNWDevice = (deviceIp, cmdArgs.CommunityString, SNMP_PORT)
             #a IP, Host Name, Host IP, Description
             #a IP : Interface IP, HSRP IP, VRRP IP, Svr VIP
-            hostName = (re.search(r'(?<=\=\s)[\w\-\_]+(?=\.)', str(snmp_getnext(aNWDevice)[0][0]))).group(0)
+            #hostName = (re.search(r'(?<=\=\s)[\w\-\_]+(?=\.)', str(snmp_getnext(aNWDevice)[0][0]))).group(0)
+            hostName = (re.search(r'[\w\-\_]+(?=\.)', str(snmp_getnext(aNWDevice)[0][0][1]))).group(0)
             intIpSet = snmp_get_ip(aNWDevice)
             for ip in intIpSet:
                 out_file.write("%s, %s, %s, Interface IP\n" % (ip, hostName, deviceIp))
-            hsrpIpSet = snmp_get_ip(aNWDevice, OID_HSRP_IP)
-            for ip in hsrpIpSet:
-                out_file.write("%s, %s, %s, HSRP IP\n" % (ip, hostName, deviceIp))
-            vrrpIpSet = snmp_get_ip(aNWDevice, OID_VRRP_IP)
-            for ip in vrrpIpSet:
-                out_file.write("%s, %s, %s, VRRP IP\n" % (ip, hostName, deviceIp))
-            vipSet = snmp_get_ip(aNWDevice, OID_SVR_VIP)
-            for ip in vipSet:
-                out_file.write("%s, %s, %s, Sever VIP\n" % (ip, hostName, deviceIp))
+            # Cisco, Alteon, F5 (BIG-IP), Alcatel, Piolink, HPE, Dell
+            vendorData = str(snmp_getnext(aNWDevice, OID_SYS_DESC)[0][0][1])
+            print('vendorData: ', vendorData)
+            match vendorData.split():
+                case ['Cisco' as vendor, *rest]:
+                    hsrpIpSet = snmp_get_ip(aNWDevice, OID_HSRP_IP)
+                    for ip in hsrpIpSet:
+                        out_file.write("%s, %s, %s, HSRP IP\n" % (ip, hostName, deviceIp))
+                case ['BIG-IP' as vendor, *rest]:
+                    vipSet = snmp_get_ip(aNWDevice, OID_F5_VIP)
+                    for ip in vipSet:
+                        out_file.write("%s, %s, %s, VIP\n" % (ip, hostName, deviceIp))
+                case ['Alteon' as vendor, *rest]:
+                    vipSet = snmp_get_ip(aNWDevice, OID_VRRP_IP)
+                    for ip in vipSet:
+                        out_file.write("%s, %s, %s, VIP\n" % (ip, hostName, deviceIp))
+                case _:
+                    vendor = 'None'
