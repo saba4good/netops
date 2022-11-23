@@ -1,25 +1,22 @@
 '''
 v.0.1
 Objectives:
-각 NW 장비 IP list를 받아서, interface IP's, VRRP/HSRP IP's, routing table IP's를 output으로 낸다.
+각 NW 장비 IP list를 받아서, interface IP's, VRRP/HSRP IP's를 output으로 낸다.
 SNMP oid를 사용할 예정
 Output: OUTPUT_COLUMNS
-Input: 장비 IP list, snmp commnunity string
+Input: 장비 IP list file, snmp commnunity string
 '''
 #!/usr/bin/env python3
-#import mmap
 import argparse
 import re              # regular expression
-#import copy
 from datetime import date
 import ipaddress
-#from ipaddress import IPv4Network
 from pysnmp.entity.rfc3413.oneliner import cmdgen
-#from pysnmp.proto.rfc1902 import Integer, IpAddress, OctetString
+from pysnmp.proto.rfc1902 import Integer, IpAddress, OctetString
 
 ##### global variables ########################################################
 #OUTPUT_COLUMNS='Host Name, Device IP, Interface IP, HSRP IP, VRRP IP, Svr VIP\n'
-OUTPUT_COLUMNS='IP, Host Name, Host IP, Description\n'
+OUTPUT_COLUMNS='IP Used, Host Name, Host IP, Description\n'
 SNMP_COMMUNITY='change_this_value_to_the_community_string'
 SNMP_PORT=161
 OID_SYS_DESC='.1.3.6.1.2.1.1.1'
@@ -27,17 +24,8 @@ OID_SYS_NAME='.1.3.6.1.2.1.1.5'
 OID_INT_IP='.1.3.6.1.2.1.4.20.1.2'
 OID_HSRP_IP='.1.3.6.1.4.1.9.9.106.1.2.1.1.11'
 OID_F5_VIP='.1.3.6.1.4.1.3375.2.2.10.1.2.1.3'
-OID_VRRP_IP='.1.3.6.1.4.1.1872.2.1.15.2.1.3'
-OID_SVR_VIP=''
-
-IDX_HOST=0
-IDX_HOST_IP=1+IDX_HOST
-IDX_INT_IP=1+IDX_HOST_IP
-IDX_HSRP_IP=1+IDX_INT_IP
-IDX_VRRP_IP=1+IDX_HSRP_IP
-IDX_SVR_VIP=1+IDX_VRRP_IP
-LAST_INDEX=IDX_SVR_VIP
-#INIT_FLAG=-1
+OID_ALTEON_VIP='.1.3.6.1.4.1.1872.2.5.3.1.6.3.1.3'
+#OID_VRRP_IP='.1.3.6.1.4.1.1872.2.1.15.2.1.3'
 
 class CmdLine:
     def __init__(self):
@@ -83,7 +71,16 @@ def snmp_get_ip(a_device, oid=OID_INT_IP, display_errors=False):
     ipSet = set()
     snmpData = snmp_getnext(a_device, oid)
     for row in snmpData:
-        ip = (re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+(?=\s)', str(row[0]))).group(0)
+        # row[0][0] : pysnmp.smi.rfc1902.ObjectIdentity
+        # row[0][1] : pysnmp.proto.rfc1902.Integer or some other type
+        # https://stackoverflow.com/questions/41890570/python-hex-ip-as-string-to=ddn-ip-string
+        if re.search(r'(OctetString|IpAddress)', str(type(row[0][1]))):
+            ip = IpAddress(row[0][1].asOctets()).prettyPrint()
+        else:
+            try:
+                ip = (re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+$', str(row[0][0]))).group(0)
+            except ValueError:
+                ip = ''
         try:
             ipSet.add(format(ipaddress.ip_address(ip)))
         except ValueError:
@@ -92,7 +89,6 @@ def snmp_get_ip(a_device, oid=OID_INT_IP, display_errors=False):
 
 if __name__ == '__main__':
     cmdArgs = CmdLine().get_args()
-    #########################################################################
     ######### IP file processing ############################################
     with cmdArgs.dev_ip_file as dev_ip_file:
         deviceIpSet = set()
@@ -103,30 +99,15 @@ if __name__ == '__main__':
             except ValueError:
                 pass
     ######### Build a device list ###########################################
-    '''
-    devTable = []
-    for deviceIp in deviceIpSet:
-        aNWDevice = (deviceIp, cmdArgs.CommunityString, SNMP_PORT)
-        devTable.append(["" for i in range(LAST_INDEX+1)])
-        #Host Name, Device IP, Interface IP, HSRP IP, VRRP IP, Svr VIP
-        hostName = (re.search(r'[\w]+(?=\.)', snmp_getnext(aNWDevice)[0])).group(0)
-        devTable[-1]=[hostName, deviceIp, snmp_get_ip(aNWDevice), snmp_get_ip(aNWDevice, OID_HSRP_IP), snmp_get_ip(aNWDevice, OID_VRRP_IP), snmp_get_ip(aNWDevice, OID_SVR_VIP)]
-        #devTable[-1][IDX_HOST_IP] = deviceIp
-        #devTable[-1][IDX_HOST] = snmp_getnext(aNWDevice)
-        #devTable[-1][IDX_INT_IP] = snmp_get_ip(aNWDevice)
-        #devTable[-1][IDX_HSRP_IP] = snmp_get_ip(aNWDevice, OID_HSRP_IP)
-    print ("Table : ", devTable)
-    '''
     output_file='device_ip-' + date.today().strftime('%Y%m%d') + '.csv'  # 결과 파일 이름
     with open(output_file, 'w') as out_file:
         out_file.write(OUTPUT_COLUMNS)
-        devTable = []
         for deviceIp in deviceIpSet:
             aNWDevice = (deviceIp, cmdArgs.CommunityString, SNMP_PORT)
             #a IP, Host Name, Host IP, Description
             #a IP : Interface IP, HSRP IP, VRRP IP, Svr VIP
             #hostName = (re.search(r'(?<=\=\s)[\w\-\_]+(?=\.)', str(snmp_getnext(aNWDevice)[0][0]))).group(0)
-            hostName = (re.search(r'[\w\-\_]+(?=\.)', str(snmp_getnext(aNWDevice)[0][0][1]))).group(0)
+            hostName = (re.search(r'[\w\-\_]+', str(snmp_getnext(aNWDevice)[0][0][1]))).group(0)
             intIpSet = snmp_get_ip(aNWDevice)
             for ip in intIpSet:
                 out_file.write("%s, %s, %s, Interface IP\n" % (ip, hostName, deviceIp))
@@ -135,16 +116,16 @@ if __name__ == '__main__':
             print('vendorData: ', vendorData)
             match vendorData.split():
                 case ['Cisco' as vendor, *rest]:
-                    hsrpIpSet = snmp_get_ip(aNWDevice, OID_HSRP_IP)
-                    for ip in hsrpIpSet:
-                        out_file.write("%s, %s, %s, HSRP IP\n" % (ip, hostName, deviceIp))
+                    usage = 'HSRP'
+                    oidToUse = OID_HSRP_IP
                 case ['BIG-IP' as vendor, *rest]:
-                    vipSet = snmp_get_ip(aNWDevice, OID_F5_VIP)
-                    for ip in vipSet:
-                        out_file.write("%s, %s, %s, VIP\n" % (ip, hostName, deviceIp))
+                    usage = 'VIP'
+                    oidToUse = OID_F5_VIP
                 case ['Alteon' as vendor, *rest]:
-                    vipSet = snmp_get_ip(aNWDevice, OID_VRRP_IP)
-                    for ip in vipSet:
-                        out_file.write("%s, %s, %s, VIP\n" % (ip, hostName, deviceIp))
+                    usage = 'VIP'
+                    oidToUse = OID_ALTEON_VIP
                 case _:
                     vendor = 'None'
+            ipSet = snmp_get_ip(aNWDevice, oidToUse)
+            for ip in ipSet:
+                out_file.write("%s, %s, %s, %s\n" % (ip, hostName, deviceIp, usage))
