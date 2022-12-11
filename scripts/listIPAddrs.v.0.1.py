@@ -2,36 +2,36 @@
 v.0.1
 Objectives:
 각 NW 장비 IP list를 받아서, interface IP's, VRRP/HSRP IP's를 output으로 낸다.
-SNMP oid를 사용할 예정
+SNMP를 사용하여 각 장비 IP마다 갖고 있는 IP를 리스트업한다.
 Output: OUTPUT_COLUMNS
 Input: 장비 IP list file, snmp commnunity string
 '''
 #!/usr/bin/env python3
 import argparse
-import re              # regular expression
+import re
 from datetime import date
 import ipaddress
 from pysnmp.entity.rfc3413.oneliner import cmdgen
 from pysnmp.proto.rfc1902 import Integer, IpAddress, OctetString
 
 ##### global variables ########################################################
-#OUTPUT_COLUMNS='Host Name, Device IP, Interface IP, HSRP IP, VRRP IP, Svr VIP\n'
 OUTPUT_COLUMNS='IP Used, Host Name, Host IP, Description\n'
 SNMP_COMMUNITY='change_this_value_to_the_community_string'
 SNMP_PORT=161
 OID_SYS_DESC='.1.3.6.1.2.1.1.1'
 OID_SYS_NAME='.1.3.6.1.2.1.1.5'
-OID_INT_IP='.1.3.6.1.2.1.4.20.1.2'
-OID_HSRP_IP='.1.3.6.1.4.1.9.9.106.1.2.1.1.11'
-OID_F5_VIP='.1.3.6.1.4.1.3375.2.2.10.1.2.1.3'
-OID_ALTEON_VIP='.1.3.6.1.4.1.1872.2.5.3.1.6.3.1.3'
+OID_INT_IP='.1.3.6.1.2.1.4.20.1.2'  # IP's used in interfaces
+OID_HSRP_IP='.1.3.6.1.4.1.9.9.106.1.2.1.1.11'      # VIP for cisco hsrp
+OID_F5_VIP='.1.3.6.1.4.1.3375.2.2.10.1.2.1.3'      # Virtual server IP's for F5 BIG-IP L4
+OID_F5_SNAT_IP='.1.3.6.1.4.1.3375.2.2.9.9.2.1.3'   # SNAT pool IP's for F5 BIG-IP L4
+OID_ALTEON_VIP='.1.3.6.1.4.1.1872.2.5.3.1.6.3.1.3' # Virtual server IP's for Radware Alteon L4
 #OID_VRRP_IP='.1.3.6.1.4.1.1872.2.1.15.2.1.3'
 
 class CmdLine:
     def __init__(self):
         parser = argparse.ArgumentParser()
         # 이 프로그램을 실행할 때, 받아들일 arguments 2개
-        parser.add_argument('dev_ip_file', type=argparse.FileType('r'), help="Device IP list")
+        parser.add_argument('dev_ip_file', type=argparse.FileType('r'), help="a device IP list file")
         parser.add_argument("-c", "--CommunityString", type=str, help = "Community string", required = False, default = SNMP_COMMUNITY)
         self.args=parser.parse_args()
     def get_args(self):
@@ -42,8 +42,8 @@ def snmp_getnext(a_device, oid=OID_SYS_NAME, display_errors=False):
     Retrieve the given OID
     Default OID is MIB2, sysDescr
     a_device is a tuple = (a_host, community_string, snmp_port)
-    ref : https://www.programcreek.com/python/example/105449/pysnmp.entity.rfc3413.oneliner.cmdgen.CommandGenerator
-          example #15
+    credit : https://www.programcreek.com/python/example/105449/pysnmp.entity.rfc3413.oneliner.cmdgen.CommandGenerator
+             example #15
     '''
     a_host, community_string, snmp_port = a_device
     snmp_target = (a_host, snmp_port)
@@ -98,7 +98,7 @@ if __name__ == '__main__':
                 deviceIpSet.add(format(ipaddress.ip_address(ipaddr)))
             except ValueError:
                 pass
-    ######### Build a device list ###########################################
+    ######### Build IP list from each device ################################
     output_file='device_ip-' + date.today().strftime('%Y%m%d') + '.csv'  # 결과 파일 이름
     with open(output_file, 'w') as out_file:
         out_file.write(OUTPUT_COLUMNS)
@@ -106,7 +106,6 @@ if __name__ == '__main__':
             aNWDevice = (deviceIp, cmdArgs.CommunityString, SNMP_PORT)
             #a IP, Host Name, Host IP, Description
             #a IP : Interface IP, HSRP IP, VRRP IP, Svr VIP
-            #hostName = (re.search(r'(?<=\=\s)[\w\-\_]+(?=\.)', str(snmp_getnext(aNWDevice)[0][0]))).group(0)
             hostName = (re.search(r'[\w\-\_]+', str(snmp_getnext(aNWDevice)[0][0][1]))).group(0)
             intIpSet = snmp_get_ip(aNWDevice)
             for ip in intIpSet:
