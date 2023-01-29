@@ -29,6 +29,7 @@ FLAG_POOL=2
 FLAG_VIRT=3
 FLAG_VR_PERSIS=4
 FLAG_HOSTNAME=5
+FLAG_NAT='nat'
 IDX_PL_SLB=0
 IDX_PL_RIPS=1
 IDX_PL_STATUS=3
@@ -73,6 +74,7 @@ if __name__ == '__main__':
                     poolProfiles[pool_id]=["" for i in range(PL_LAST_IDX+1)]
                 case ['ltm', 'virtual', virt_id, '{']:
                     which_section = FLAG_VIRT
+                    subsection = ''
                     settingsTable.append(["" for i in range(LAST_IDX+1)])
                     settingsTable[-1][IDX_VIRT] = virt_id
                 case ['address', ip]:
@@ -88,7 +90,7 @@ if __name__ == '__main__':
                         settingsTable[-1][IDX_VIP] = (re.search(r'[\d]+\.[\d]+\.[\d]+\.[\d]+', ip_port)).group(0)
                         settingsTable[-1][IDX_VPORT] = (re.search(r'(?<=:)[\w]+', ip_port)).group(0)
                 case ['pool', pool_id_used]:
-                    if which_section == FLAG_VIRT:
+                    if which_section == FLAG_VIRT and subsection != FLAG_NAT:
                         settingsTable[-1][IDX_SLB_METHOD] = poolProfiles[pool_id_used][IDX_PL_SLB]
                         for rip_state in poolProfiles[pool_id_used][IDX_PL_RIPS].split(';'):
                             if settingsTable[-1][IDX_RIP] != '':
@@ -98,7 +100,9 @@ if __name__ == '__main__':
                 case ['persist', '{']:
                     if which_section == FLAG_VIRT:
                         which_section = FLAG_VR_PERSIS
-                case [opening, '{']:
+                case ['source-address-translation', '{']: ## If NAT other than source NAT is used, it should be added in this line as well.
+                    subsection = FLAG_NAT
+                case [opening, '{']:    ## Any sections with one word other than the ones above this line won't work.
                     if which_section == FLAG_VR_PERSIS:
                         which_section = FLAG_VIRT
                         settingsTable[-1][IDX_PERSIS] = persisProfiles[opening]
