@@ -43,7 +43,7 @@ IDX_PERSIS=1+IDX_SLB_METHOD
 IDX_SVR_STATUS=1+IDX_PERSIS
 IDX_VIRT=1+IDX_SVR_STATUS
 LAST_IDX=IDX_VIRT ## 맨 마지막 순서인 인덱스명
-OUTPUT_COLUMNS='Vip, Vport, Rip, SLB method, Persis. Timeout, Status, Virt'
+OUTPUT_COLUMNS='Vip, Vport, Rip, SLB method, Persis. Timeout, Status, Virt\n'
 #
 if __name__ == '__main__':
     # 이 프로그램을 실행할 때, 받아들일 arguments 1개
@@ -72,6 +72,7 @@ if __name__ == '__main__':
                 case ['ltm', 'pool', pool_id, '{']:
                     which_section = FLAG_POOL
                     poolProfiles[pool_id]=["" for i in range(PL_LAST_IDX+1)]
+                    poolProfiles[pool_id][IDX_PL_SLB] = DEFAULT_SLB_METHOD
                 case ['ltm', 'virtual', virt_id, '{']:
                     which_section = FLAG_VIRT
                     subsection = ''
