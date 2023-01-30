@@ -85,7 +85,7 @@ if __name__ == '__main__':
                 case ['address', ip]:
                     realProfiles[node_id][IDX_ND_IP] = ip
                 case ['monitor', monitor]:
-                    realProfiles[node_id][IDX_ND_MON] = monitor
+                    realProfiles[node_id][IDX_ND_MON] = monitor.replace(PREFIX, '')
                 case ['ltm', 'pool', pool_id, '{']:
                     which_section = FLAG_POOL
                     poolProfiles[pool_id]=["" for i in range(PL_LAST_IDX+1)]
@@ -94,12 +94,15 @@ if __name__ == '__main__':
         ## create poolProfiles/snatipProfiles/snatplProfiles dictionaries from config file
         snatipProfiles = dict()
         snatplProfiles = dict()
+        settingsTable = []
         for line in cfg_file:
             match line.split():
                 case ['ltm', 'pool', pool_id, '{']:
                     which_section = FLAG_POOL
                     poolProfiles[pool_id]=["" for i in range(PL_LAST_IDX+1)]
                     poolProfiles[pool_id][IDX_PL_SLB] = DEFAULT_SLB_METHOD
+                case ['members', '{']:
+                    pass
                 case [member_rport, '{']:
                     if which_section == FLAG_POOL:
                         if poolProfiles[pool_id][IDX_PL_RIPS] != '':
@@ -122,9 +125,11 @@ if __name__ == '__main__':
                     if re.search(r'^}', line):
                         which_section =  INIT_VALUE
                 case ['priority-group', priority]:
-                    if poolProfiles[pool_id][IDX_PL_SLB] != '' and poolProfiles[pool_id][IDX_PL_SLB] != DEFAULT_SLB_METHOD:
+                    if poolProfiles[pool_id][IDX_PL_SLB] == DEFAULT_SLB_METHOD:
+                        poolProfiles[pool_id][IDX_PL_SLB] = ''
+                    else:
                         poolProfiles[pool_id][IDX_PL_SLB] += ';'
-                    poolProfiles[pool_id][IDX_PL_SLB] = 'Priority('+ priority +')'
+                    poolProfiles[pool_id][IDX_PL_SLB] += 'Priority('+ priority +')'
                 case ['ltm', 'snat-translation', snat_id, '{']:
                     which_section = FLAG_NAT
                 case ['ltm', 'snatpool', snatpool_id, '{']:
@@ -142,7 +147,6 @@ if __name__ == '__main__':
                     settingsTable[-1][IDX_VIRT] = virt_id.replace(PREFIX, '')
                     break
         ## create a settingsTable list from config file
-        settingsTable = []
         for line in cfg_file:
             match line.split():
                 case ['ltm', 'virtual', virt_id, '{']:
@@ -154,13 +158,15 @@ if __name__ == '__main__':
                 case ['pool', pool_id_used]:
                     if subsection == FLAG_NAT:
                         settingsTable[-1][IDX_PIP] = pool_id_used.replace(PREFIX, '')
-                    else if subsection == INIT_VALUE:
+                    elif subsection == INIT_VALUE:
                         settingsTable[-1][IDX_SLB_METHOD] = poolProfiles[pool_id_used][IDX_PL_SLB]
-                        for rip, rmon in zip_longest(poolProfiles[pool_id_used][IDX_PL_RIPS].split(';'), poolProfiles[pool_id_used][IDX_PL_RMON].split(';'), fillvalue=""):
+                        for rip, rmon, rslb in zip_longest(poolProfiles[pool_id_used][IDX_PL_RIPS].split(';'), poolProfiles[pool_id_used][IDX_PL_RMON].split(';'), poolProfiles[pool_id_used][IDX_PL_SLB].split(';'), fillvalue=""):
                             if settingsTable[-1][IDX_RIP] != '':
                                 settingsTable.append(copy.deepcopy(settingsTable[-1]))
                             settingsTable[-1][IDX_RIP] = rip
                             settingsTable[-1][IDX_HEALTH] = rmon
+                            if rslb != '':
+                                settingsTable[-1][IDX_SLB_METHOD] = rslb
                 case ['persist', '{']:
                     subsection = FLAG_VR_PERSIS
                 case ['source-address-translation', '{']: ## If NAT other than source NAT is used, it should be added in this line as well.
@@ -170,8 +176,10 @@ if __name__ == '__main__':
                         settingsTable[-1][IDX_PERSIS] = persis_id.replace(PREFIX, '')
                 case ['}']:
                     subsection =  INIT_VALUE
+                case ['ltm', 'virtual-address', vip_id, '{']:
+                    break
 
-    output_file=hostname + '-cfg-' + date.today().strftime('%Y%m%d') + '.csv'  # 결과 파일 이름
+    output_file=args.hostname + '-cfg-' + date.today().strftime('%Y%m%d') + '.csv'  # 결과 파일 이름
     with open(output_file, 'w') as out_file:
         out_file.write(OUTPUT_COLUMNS)
         for row in settingsTable:
