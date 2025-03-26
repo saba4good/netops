@@ -117,6 +117,7 @@ def sanitize_input_text_file(file, report_folder):
         all_lines = logfile.read()
         ## The following line is dependent on the vendor of the device.
         commands = sorted(re.findall(r"^> (show .*|stat .*)", all_lines, re.MULTILINE), key=len, reverse=True)
+        #commands = sorted(re.findall(r"^[\w\-_\.]*> (show .*|stat .*)", all_lines, re.MULTILINE), key=len, reverse=True) ############### Use this if prompt is there
         #logging.debug(f"Number of commands: {len(commands)}\n")
         #logging.debug(f"Command list: {commands}\n")
         logfile.seek(0)
@@ -124,9 +125,13 @@ def sanitize_input_text_file(file, report_folder):
         for line in logfile:
             for command in commands:
                 if line.startswith(command):
-                    tmpf.write(line[len(command):])
+                    # Remove the command from the line
+                    remainder = line[len(command):]
+                    # If the remainder (ignoring whitespace) is non-empty, write it
+                    if remainder.strip():
+                        tmpf.write(remainder)
                     flag_change = True
-                    logging.debug(f"****{command}**** is in line below:\n{line}")
+                    logging.debug(f"****{command}**** is in the line below:\n{line}")
                     break
             else:
                 tmpf.write(line)
@@ -226,19 +231,24 @@ def parse_citrix_cmd_output(file):
                     count = int(count.split(":")[1]) ## expiration:2155
                     if count < 60:  ## This needs to be checked #####################
                         device_data.ssl_certs[cert_name] = count
-                case ['>', 'stat', 'service', '|', 'grep', state, '-c']: ##
+                case [prompt, 'stat', 'servi', '|', 'grep', state, '-c'] if '>' in prompt: ## 
                     if state == 'OUT':
                         slb_count_key['svc_count'] = 'Out Of Service'
                     else:
                         slb_count_key['svc_count'] = state
-                case ['>', 'stat', 'lb', 'vs', '|', 'grep', state, '-c']: ##
+                case [prompt, 'stat', 'service', '|', 'grep', state, '-c'] if '>' in prompt: ## If the commands are cut short, this might not work
+                    if state == 'OUT':
+                        slb_count_key['svc_count'] = 'Out Of Service'
+                    else:
+                        slb_count_key['svc_count'] = state
+                case [prompt, 'stat', 'lb', 'vs', '|', 'grep', state, '-c'] if '>' in prompt: ##
                     if state == 'OUT':
                         slb_count_key['vs_count'] = 'Out Of Service'
                     else:
                         slb_count_key['vs_count'] = state
-                case ['>', 'show', 'server', '-summary', '|', 'grep', 'E', '-c']: ##
+                case [prompt, 'show', 'server', '-summary', '|', 'grep', 'E', '-c'] if '>' in prompt: ##
                     slb_count_key['svr_count'] = 'ENABLED'
-                case ['>', 'show', 'server', '-summary', '|', 'grep', 'DIS', '-c']: ##
+                case [prompt, 'show', 'server', '-summary', '|', 'grep', 'DIS', '-c'] if '>' in prompt: ##
                     slb_count_key['svr_count'] = 'DISABLED'
                 case [num] if num.isdigit() and slb_count_key:
                     key, value = slb_count_key.popitem()  ## This will have only one key and one value at a time
