@@ -458,7 +458,7 @@ def fill_excel_with_nested_data(data, excel_file, sheet_name, mapping):
     row_headings = [cell.value for cell in sheet['B'][1:]]
     #logging.debug(f"{len(row_headings)} row headings from the template: {row_headings}")
     # Create a reverse mapping for easier lookup (Excel heading -> dictionary key)
-    reverse_mapping = {v: k for k, v in mapping.items()}
+    #reverse_mapping = {v: k for k, v in mapping.items()}
 
     # Write data into the Excel sheet
     for item in data.values():
@@ -469,9 +469,9 @@ def fill_excel_with_nested_data(data, excel_file, sheet_name, mapping):
         for row_idx, heading in enumerate(row_headings, start=2):
             # Check if the heading exists in the reverse mapping
             #logging.debug(f"The row heading from {sheet_name}: {row_idx}.{heading}")
-            if heading in reverse_mapping:
+            if heading in mapping:
                 # Get the corresponding dictionary key (can be nested)
-                dict_key = reverse_mapping[heading]
+                dict_key = mapping[heading]
                 # Support nested dictionary keys
                 keys = dict_key.split('.')  # Split nested keys using '.'
                 value = item
@@ -724,21 +724,40 @@ if __name__ == "__main__":
     # Prepare output file
     # Mapping of dictionary keys to Excel row headings
     # Mapping of nested dictionary keys to Excel row headings e.g. 'intf_errors.error_types.input_errors': 'Intf Rx Errors'
-    row_mapping = {
-        'hostname': 'Hostname', 'model': 'Model',
-        'serial': 'Serial Number', 'ns_ip': 'NSIP',
-        'os_version': 'Version', 'uptime': 'System Uptime',
-        'cpu_util': 'CPU 사용률', 'memory_util': 'Memory 사용률',
-        'powers.health': 'Power Supply State', 'fans.health': 'Fan State',
-        'intf_errors': 'Interface State',
-        'ha.health': 'Node State', 'ha.state': 'Master State', 'ha.sync': 'Sync State', 'ha.prop': 'Propagation',
-        'slb_count.vs_count': 'Virtual Server', 'slb_count.svc_count': 'Service', 'slb_count.svr_count': 'Server',
-        'ssl_cards': 'SSL Cards State', 'ssl_certs': 'Certificate DaytoExpire State',
-        'throughput': 'System Throughput(Mbps)', 'tcp_cc_client': 'TCP Eastablished Client Conn', 'tcp_cc_server': 'TCP Eastablished Server Conn',
-        'http_rps': 'HTTP Requests Rate(/s)',
-        'ssl_sps': 'SSL Session Rate(/s)', 'key_eps_rsa2048': 'Key Exchange Rate(/s) / RSA2048', 'key_eps_ecdhe256': 'Key Exchange Rate(/s) / ECDHE 256 Curve',
-        'log': 'Log State'}
-
+    templates = {
+        'default':  {'file_name': 'template_citrix.xlsx', 'data_sheet': '점검결과_Review', 
+                        'row_mapping': {
+                            'Hostname': 'hostname', 'Model': 'model', 'Serial Number': 'serial', 
+                            'NSIP': 'ns_ip', 'Version': 'os_version', 'System Uptime': 'uptime', 
+                            'CPU 사용률': 'cpu_util', 'Memory 사용률': 'memory_util', 
+                            'Power Supply State': 'powers.health', 'Fan State': 'fans.health', 
+                            'Interface State': 'intf_errors', 'Node State': 'ha.health', 
+                            'Master State': 'ha.state', 'Sync State': 'ha.sync', 'Propagation': 'ha.prop', 
+                            'Virtual Server': 'slb_count.vs_count', 'Service': 'slb_count.svc_count', 
+                            'Server': 'slb_count.svr_count', 'SSL Cards State': 'ssl_cards', 
+                            'Certificate DaytoExpire State': 'ssl_certs', 'System Throughput(Mbps)': 'throughput', 
+                            'TCP Eastablished Client Conn': 'tcp_cc_client', 'TCP Eastablished Server Conn': 'tcp_cc_server', 
+                            'HTTP Requests Rate(/s)': 'http_rps', 'SSL Session Rate(/s)': 'ssl_sps', 
+                            'Key Exchange Rate(/s) / RSA2048': 'key_eps_rsa2048', 'Key Exchange Rate(/s) / ECDHE 256 Curve': 'key_eps_ecdhe256', 
+                            'Log State': 'log'
+                        }},
+        '1ws':      {'file_name': 'template_citrix_1ws.xlsx', 'data_sheet': '점검결과_Review',
+                        'row_mapping': {
+                            'HostName': 'hostname', 'Model': 'model', 'Hardware Serial': 'serial', 
+                            'NSIP': 'ns_ip', 'Version': 'os_version', 'System Uptime': 'uptime', 'License': 'license_type',
+                            'CPU 부하': 'cpu_util', 'MGMT CPU 부하': 'mgmt_cpu_util','Memory 사용률': 'memory_util', 
+                            'Power': 'powers.health', 'Power Supply 이중화': 'powers.health', 'Fan': 'fans.health', 
+                            'Interface 상태': 'intf_errors', 'HA 상태': 'ha.health', 
+                            'Configuration Sync 상태': 'ha.state.State', 'Sync State': 'ha.sync', 'Propagation': 'ha.prop', 
+                            'Virtual-Server Total Count': 'slb_count.vs_count.total', 'Service Total Count': 'slb_count.svc_count.total', 
+                            'Real Server Total Count': 'slb_count.svr_count.total', 'Module or Card': 'ssl_cards', 
+                            'Certificate DaytoExpire State': 'ssl_certs', 'System Throughput(Mbps)': 'throughput', 
+                            'TCP Eastablished Client Conn': 'tcp_cc_client', 'TCP Eastablished Server Conn': 'tcp_cc_server', 
+                            'HTTP Requests Rate(/s)': 'http_rps', 'SSL Session Rate(/s)': 'ssl_sps', 
+                            'Key Exchange Rate(/s) / RSA2048': 'key_eps_rsa2048', 'Key Exchange Rate(/s) / ECDHE 256 Curve': 'key_eps_ecdhe256', 
+                            'Log State': 'log'
+                        }}
+    }
     template_file = Path("./template_citrix.xlsx")
     logging.info(f"Template file: {template_file}")
     report_file = report_folder / f"Report_citrix_{datetime.today().strftime('%Y%m%d')}.xlsx"
@@ -756,7 +775,7 @@ if __name__ == "__main__":
     validate_hostnames(status_data, report_file, inven_sheet, sheets_to_update_hostnames)
     # Update a summary data sheet
     logging.info(f"Now the summary data sheet is being updated.....")
-    fill_excel_with_nested_data(status_data, report_file, data_sheet, row_mapping)
+    fill_excel_with_nested_data(status_data, report_file, data_sheet, templates['default']['row_mapping'])
     # Color the summary data sheet to become more readable
     highlight_flagged_columns(report_file, header_col_letter='B', sheetname=data_sheet, fill_color=HA_PRIMARY_COLOR)
     #logging.debug(f"Data dictionary:\n{status_data}")
