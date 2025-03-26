@@ -41,13 +41,16 @@ class CitrixData:
     hostname: str = ""
     model: str = ""
     serial: str = ""
+    license_type: str = ""
     os_version: str = ""
     uptime: str = ""
     ns_ip: str = ""
     gateway: str = ""
     cpu_util: dict = None     #{'Current':'', 'MAX':''}  # Packet CPU usage (%)
     memory_util: dict = None  #{'Current':'', 'MAX':''}  # InUse Memory (%)
+    mgmt_cpu_util: dict = None
     fans: dict = None       #{'rpm': 0}
+    temperature: dict = None
     powers: dict = None     #{'health':''}
     intf_errors: str = ""
     ha: dict = None #{'health':'', 'state':{'type':'', 'time':''}, 'sync':'', 'prop':''}
@@ -146,7 +149,7 @@ def sanitize_input_text_file(file, report_folder):
 def parse_citrix_cmd_output(file):
     """Parse log file and extract device data."""
     device_data = CitrixData( ## max value won't be in all the devices; thus it won't be created here.
-        cpu_util={'Current':''}, memory_util={'Current':''}, fans={'health':{'RPM': 0, 'State': ''}}, powers={'health':''},
+        cpu_util={'Current':''}, memory_util={'Current':''}, mgmt_cpu_util={'Current':''}, fans={'health':{'RPM': 0, 'State': ''}}, powers={'health':''}, temperature={'health':''},
         ha={'health':'', 'state':{'State':'', 'Duration':''}, 'sync':'', 'prop':''},
         slb_count={'vs_count':{'UP':0, 'DOWN':0, 'Out Of Service':0}, 'svc_count':{'UP':0, 'DOWN':0, 'Out Of Service':0}, 'svr_count':{'ENABLED':0, 'DISABLED':0}},
         ssl_certs={}, #'valid_cert_name':'dates_until_expiration'
@@ -186,6 +189,8 @@ def parse_citrix_cmd_output(file):
                     device_data.memory_util['Current'] = memory ## f"{memory:.2f}"
                 case ['Packet', 'CPU', 'usage', '(%)', cpu]:
                     device_data.cpu_util['Current'] = cpu
+                case ['Management', 'CPU', 'usage', '(%)', cpu]:
+                    device_data.mgmt_cpu_util['Current'] = cpu
                 case [fan_type, 'Fan', fan_id, 'Speed', '(RPM)', rpm]:
                     device_data.fans[f"{fan_type} fan {fan_id}"] = rpm ## fan_type: System or CPU
                     if device_data.fans['health']['State'] in {'', 'Normal'}:
@@ -204,6 +209,10 @@ def parse_citrix_cmd_output(file):
                         else:
                             device_data.fans['health']['State'] = 'Normal'
                             device_data.fans['health']['RPM'] = max(int(device_data.fans['health']['RPM']), int(rpm))
+                case ['Internal', 'Temperature', '(Celsius)', temperature]:
+                    device_data.temperature['degree'] = temperature
+                    if int(temperature) < 50:
+                        device_data.temperature['health'] = 'Normal'
                 case ['Power', 'supply', pid, 'status', status]:  ## only considers 'NORMAL' and 'FAILED'; Not considering 'NOT SUPPORTED'
                     device_data.powers[f"Power {pid}"] = status
                     if device_data.powers['health'] != 'FAILED':
@@ -279,6 +288,8 @@ def parse_citrix_cmd_output(file):
                     flag_frontend = False
                 case [weekday, month, date, time, 'KST', year]: ## Mon Feb 17 15:01:14 KST 2025
                     device_data.date_time = parse_and_format_datetime(line.strip())
+                case ['License', 'Type:', *license_type]:
+                    device_data.license_type = " ".join(license_type)
         #logging.debug(f"Extracted data for {file.name}: {device_data}")
         device_data.log_file_name = file.name
         return device_data
