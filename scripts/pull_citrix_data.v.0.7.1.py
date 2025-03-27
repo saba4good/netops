@@ -151,7 +151,7 @@ def parse_citrix_cmd_output(file):
     device_data = CitrixData( ## max value won't be in all the devices; thus it won't be created here.
         cpu_util={'Current':''}, memory_util={'Current':''}, mgmt_cpu_util={'Current':''}, fans={'health':{'RPM': 0, 'State': ''}}, powers={'health':''}, temperature={'health':''},
         ha={'health':'', 'state':{'State':'', 'Duration':''}, 'sync':'', 'prop':''},
-        slb_count={'vs_count':{'UP':0, 'DOWN':0, 'Out Of Service':0}, 'svc_count':{'UP':0, 'DOWN':0, 'Out Of Service':0}, 'svr_count':{'ENABLED':0, 'DISABLED':0}},
+        slb_count={'vs_count':{'UP':0, 'DOWN':0, 'Out Of Service':0, 'Total':0}, 'svc_count':{'UP':0, 'DOWN':0, 'Out Of Service':0, 'Total':0}, 'svr_count':{'ENABLED':0, 'DISABLED':0, 'Total':0}},
         ssl_certs={}, #'valid_cert_name':'dates_until_expiration'
         tcp_cc_client={'Current':0}, tcp_cc_server={'Current':0}, tcp_cps={'Current':0},
         http_rps={'Current':0},
@@ -185,6 +185,9 @@ def parse_citrix_cmd_output(file):
                 case ['Up', 'since(Local)', *uptimeList]:
                     ## join a list of strings ## Up since(Local) Fri Aug 16 11:17:25 2024
                     device_data.uptime = " ".join(uptimeList)
+                case ['Up', 'since', *uptimeList] if not device_data.uptime: ## Local time isn't in ver. 11.1.
+                    ## join a list of strings ## Up since Fri Aug 16 11:17:25 2024
+                    device_data.uptime = " ".join(uptimeList)
                 case ['InUse', 'Memory', '(%)', memory]:
                     device_data.memory_util['Current'] = memory ## f"{memory:.2f}"
                 case ['Packet', 'CPU', 'usage', '(%)', cpu]:
@@ -216,7 +219,7 @@ def parse_citrix_cmd_output(file):
                 case ['Power', 'supply', pid, 'status', status]:  ## only considers 'NORMAL' and 'FAILED'; Not considering 'NOT SUPPORTED'
                     device_data.powers[f"Power {pid}"] = status
                     if device_data.powers['health'] != 'FAILED':
-                        device_data.powers['health'] = status
+                        device_data.powers['health'] = status.title() ## Capitalize the first letter of a word (Use string.capwords() if this doesn't work.)
                 case ['set', 'ns', 'config', '-IPAddress', ns_ip, *rest]:
                     device_data.ns_ip = ns_ip
                 case ['add', 'route', '0.0.0.0', '0.0.0.0', gw]:
@@ -262,6 +265,7 @@ def parse_citrix_cmd_output(file):
                 case [num] if num.isdigit() and slb_count_key:
                     key, value = slb_count_key.popitem()  ## This will have only one key and one value at a time
                     device_data.slb_count[key][value] = int(num)
+                    device_data.slb_count[key]['Total'] += int(num)
                 case ['Throughput', 'Statistics','Rate', '(/s)', 'Total']:
                     flag_throughput = True
                 case ['Megabits', 'received', throughput, rest] if flag_throughput:
@@ -451,12 +455,12 @@ def fill_excel_with_nested_data(data, excel_file, sheet_name, mapping):
 
     # Get the hostnames and locations from the 2nd and 3rd row of the sheet
     hostnames = [cell.value for cell in sheet[2][2:]]
-    #locations = [cell.value for cell in sheet[3][2:]]
     logging.debug(f"\t{len(hostnames)} hostnames from the template:\n{hostnames}")
+    #locations = [cell.value for cell in sheet[3][2:]]
     #logging.debug(f"\t{len(locations)} Locations from the template:\n{locations}")
     # Get the row headings from the second column of the sheet
     row_headings = [cell.value for cell in sheet['B'][1:]]
-    #logging.debug(f"{len(row_headings)} row headings from the template: {row_headings}")
+    logging.debug(f"{len(row_headings)} row headings from the template: {row_headings}")
     # Create a reverse mapping for easier lookup (Excel heading -> dictionary key)
     #reverse_mapping = {v: k for k, v in mapping.items()}
 
@@ -690,6 +694,55 @@ def highlight_flagged_columns(
                 target_cell.fill = primary_fill
     wb.save(filename)
 
+def temporary_patch(excel_file, sheet_name): ### This should be reworked later
+    # Load the workbook and select the specified sheet
+    wb = load_workbook(excel_file)
+    ws = wb[sheet_name]
+    keywords = ["CPU 부하", "Memory 사용률", "Temperature", "MGMT CPU 부하"]
+    # Iterate over rows (starting from row 2, assuming row 1 is headers)
+    for row in ws.iter_rows(min_row=2):
+        # Check if the value in column B (index 1) is one of the keywords.
+        if row[1].value in keywords:
+            # Search through the entire row for a numeric value.
+            for cell in row:
+                try:
+                    # Attempt to convert the cell value to a float.
+                    measurement = float(cell.value)
+                except (TypeError, ValueError):
+                    # If conversion fails, skip this cell.
+                    continue
+                # When a numeric cell is found, update its value based on the measurement.
+                if measurement < 50:
+                    if row[1].value == "Temperature":
+                        cell.value = f"양호 ({measurement}°C)"
+                    else:
+                        cell.value = f"양호 ({measurement}%)"
+                else:
+                    if row[1].value == "Temperature":
+                        cell.value = f"주의 ({measurement}°C)"
+                    else:
+                        cell.value = f"주의 ({measurement}%)"
+        try:
+            if "Total Count" in row[1].value:
+                # Search through the entire row for a numeric value.
+                for cell in row[2:]:
+                    cell.value = f"Total: {cell.value}"
+        except TypeError:
+            break
+    replacements = {'Normal':'양호', 'Warning':'주의'}
+    for row in ws.iter_rows(min_row=2):
+        for cell in row[2:]:
+            # If cell is empty or contains only whitespace, set it to "양호"
+            if cell.value is None or (isinstance(cell.value, str) and cell.value.strip() == ""):
+                cell.value = "양호"
+            # Otherwise, if it's a string, check for keys contained in it
+            elif isinstance(cell.value, str):
+                for key, new_value in replacements.items():
+                    if key in cell.value:
+                        cell.value = cell.value.replace(key, new_value)
+    # Save the changes back to the workbook
+    wb.save(excel_file)
+    wb.close()
 
 if __name__ == "__main__":
     ##############################################
@@ -725,7 +778,7 @@ if __name__ == "__main__":
     # Mapping of dictionary keys to Excel row headings
     # Mapping of nested dictionary keys to Excel row headings e.g. 'intf_errors.error_types.input_errors': 'Intf Rx Errors'
     templates = {
-        'default':  {'file_name': 'template_citrix.xlsx', 'data_sheet': '점검결과_Review', 
+        'default':  {'file_name': 'template_citrix.xlsx', 'data_sheet': '점검결과_Review', 'data_header_column': 'B',
                         'row_mapping': {
                             'Hostname': 'hostname', 'Model': 'model', 'Serial Number': 'serial', 
                             'NSIP': 'ns_ip', 'Version': 'os_version', 'System Uptime': 'uptime', 
@@ -741,16 +794,16 @@ if __name__ == "__main__":
                             'Key Exchange Rate(/s) / RSA2048': 'key_eps_rsa2048', 'Key Exchange Rate(/s) / ECDHE 256 Curve': 'key_eps_ecdhe256', 
                             'Log State': 'log'
                         }},
-        '1ws':      {'file_name': 'template_citrix_1ws.xlsx', 'data_sheet': '점검결과_Review',
+        '1ws':      {'file_name': 'template_citrix_1ws.xlsx', 'data_sheet': '점검결과_Review', 'data_header_column': 'B',
                         'row_mapping': {
                             'HostName': 'hostname', 'Model': 'model', 'Hardware Serial': 'serial', 
                             'NSIP': 'ns_ip', 'Version': 'os_version', 'System Uptime': 'uptime', 'License': 'license_type',
-                            'CPU 부하': 'cpu_util', 'MGMT CPU 부하': 'mgmt_cpu_util','Memory 사용률': 'memory_util', 
-                            'Power': 'powers.health', 'Power Supply 이중화': 'powers.health', 'Fan': 'fans.health', 
+                            'CPU 부하': 'cpu_util.Current', 'MGMT CPU 부하': 'mgmt_cpu_util.Current','Memory 사용률': 'memory_util.Current', 
+                            'Power': 'powers.health', 'Power Supply 이중화': 'powers.health', 'FAN': 'fans.health.State', 'Temperature': 'temperature.degree',
                             'Interface 상태': 'intf_errors', 'HA 상태': 'ha.health', 
                             'Configuration Sync 상태': 'ha.state.State', 'Sync State': 'ha.sync', 'Propagation': 'ha.prop', 
-                            'Virtual-Server Total Count': 'slb_count.vs_count.total', 'Service Total Count': 'slb_count.svc_count.total', 
-                            'Real Server Total Count': 'slb_count.svr_count.total', 'Module or Card': 'ssl_cards', 
+                            'Virtual-Server Total Count': 'slb_count.vs_count.Total', 'Service Total Count': 'slb_count.svc_count.Total', 
+                            'Real Server Total Count': 'slb_count.svr_count.Total', 'Module or Card': 'ssl_cards', 
                             'Certificate DaytoExpire State': 'ssl_certs', 'System Throughput(Mbps)': 'throughput', 
                             'TCP Eastablished Client Conn': 'tcp_cc_client', 'TCP Eastablished Server Conn': 'tcp_cc_server', 
                             'HTTP Requests Rate(/s)': 'http_rps', 'SSL Session Rate(/s)': 'ssl_sps', 
@@ -758,7 +811,15 @@ if __name__ == "__main__":
                             'Log State': 'log'
                         }}
     }
-    template_file = Path("./template_citrix.xlsx")
+    #template_file = Path("./template_citrix.xlsx")
+    template_file = Path(templates['default']['file_name'])
+    if template_file.exists():
+        template_type = 'default'
+    elif Path(templates['1ws']['file_name']).exists:
+        template_type = '1ws'
+        template_file = Path(templates[template_type]['file_name'])
+    else:
+        logging.warning(f"NO template file exists.")
     logging.info(f"Template file: {template_file}")
     report_file = report_folder / f"Report_citrix_{datetime.today().strftime('%Y%m%d')}.xlsx"
     logging.info(f"Report output file: {report_file}")
@@ -767,21 +828,26 @@ if __name__ == "__main__":
     template_wb.save(report_file)
     template_wb.close()
     inven_sheet = 'Inven'
-    data_sheet = '점검결과_Review'  ## Worksheet with data for engineers
+    data_sheet = templates[template_type]['data_sheet']  ## Worksheet with data for engineers
     sheets_to_update_hostnames = [data_sheet, '점검결과_Summary'] ## Sheets in this list will be changed, should any hostname changed.
     # Validate hostname-serial number pairs are all correct
     # If they aren't the same, the sheets will be updated
-    logging.info(f"Start comparing hostnames of input file against hostnames of an inventory sheet")
-    validate_hostnames(status_data, report_file, inven_sheet, sheets_to_update_hostnames)
+    if template_type == 'default':    
+        logging.info(f"Start comparing hostnames of input file against hostnames of an inventory sheet")
+        validate_hostnames(status_data, report_file, inven_sheet, sheets_to_update_hostnames)
     # Update a summary data sheet
     logging.info(f"Now the summary data sheet is being updated.....")
-    fill_excel_with_nested_data(status_data, report_file, data_sheet, templates['default']['row_mapping'])
+    fill_excel_with_nested_data(status_data, report_file, data_sheet, templates[template_type]['row_mapping'])
     # Color the summary data sheet to become more readable
-    highlight_flagged_columns(report_file, header_col_letter='B', sheetname=data_sheet, fill_color=HA_PRIMARY_COLOR)
+    highlight_flagged_columns(report_file, header_col_letter=templates[template_type]['data_header_column'], sheetname=data_sheet, fill_color=HA_PRIMARY_COLOR)
     #logging.debug(f"Data dictionary:\n{status_data}")
     # Copy a sample sheet and dump data onto a copied sheet for each device
-    logging.info(f"Each device data is being written on its own sheet.....")
-    process_excel_output_files(status_data, report_file, 'sample', data_sheet)
+    if template_type == 'default':    
+        logging.info(f"Each device data is being written on its own sheet.....")
+        process_excel_output_files(status_data, report_file, 'sample', data_sheet)
+    else:
+        logging.info(f"{data_sheet} is being patched.....")
+        temporary_patch(report_file, data_sheet)
     #output_wb.remove(output_wb["sample"])
     #output_wb.save(reportFile)
 
